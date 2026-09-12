@@ -21,6 +21,23 @@ cargo doc --no-deps
 Everything can be exercised on Linux without a phone, GPS chip, or internet
 connection.
 
+## CLI
+
+A companion binary ships with the library:
+
+```
+cargo run --bin gps-engine -- inspect  testdata/gpx/noisy_loop.gpx
+cargo run --bin gps-engine -- process  testdata/gpx/noisy_loop.gpx
+cargo run --bin gps-engine -- compare  a.gpx b.gpx
+cargo run --bin gps-engine -- discover ./tracks/
+cargo run --bin gps-engine -- benchmark ./tracks/
+```
+
+`inspect`/`process` summarize a track; `compare` prints the structured
+`MatchScore` metrics plus a SAME/DIFFERENT classification; `discover` clusters
+tracks into routes; `benchmark` times discovery and the pairwise matrix
+(§34/§36 of the crate plan). Only the benchmark reads the wall clock.
+
 ## Module map
 
 | Module      | Responsibility                                              |
@@ -33,11 +50,15 @@ connection.
 | `route`     | pairwise matching: structured `MatchScore` diagnostics      |
 | `route`     | discovery: cluster recordings into routes (`RouteCatalog`)  |
 | `route`     | canonicalization: one robust `Route` from a cluster         |
+| `attempt`   | GPS → route distance → elapsed time (`time_at`, `distance_at`) |
+| `attempt`   | performance comparison: pointwise `ComparisonPoint`s        |
+| `ghost`     | PB-vs-live duel: `GhostState { distance, difference, ahead }` |
 | `gpx`       | GPX → `Track` adapter (RFC 3339 times, Garmin speed ext)    |
 | `synthetic` | deterministic synthetic GPS generation for tests            |
 | `error`     | typed errors                                                |
 
-Planned (later phases): `attempt` (progress + performance), `ghost`.
+Planned (later phases): property-based tests, benchmark harness, FFI bindings
+for Flutter.
 Matching currently exposes individual metrics (start/end distance, length
 ratio, spatial overlap, direction) rather than one magic score — the
 provisional `overall_score` is documented as tunable against a labeled corpus.
