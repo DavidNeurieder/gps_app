@@ -1,7 +1,7 @@
 //! Property tests for `Route` projection invariants (§32).
 
 use gps_engine::Route;
-use gps_engine::geo::{Coordinate, distance};
+use gps_engine::geo::{Coordinate, PolylineBounds, distance, project_to_polyline};
 use gps_engine::units::Distance;
 use proptest::prelude::*;
 
@@ -109,5 +109,48 @@ proptest! {
         let proj = route.project(point);
         let nearest = route.nearest(point);
         prop_assert!((proj.distance_along.meters() - nearest.distance.meters()).abs() < 1e-6);
+    }
+
+    #[test]
+    fn pruned_projection_agrees_with_exact(
+        route in small_route(),
+        point in coord(),
+        tol in 1.0f64..200.0,
+    ) {
+        // `PolylineBounds::project_within` is the fast path used by matching:
+        // it must never disagree with the exact nearest projection about
+        // whether a point lies within `tol`. Over-rejection here would drop
+        // real spatial overlap.
+        let geometry = route.geometry();
+        let bounds = PolylineBounds::new(geometry);
+        let exact = project_to_polyline(point, geometry);
+        let pruned = bounds.project_within(point, Distance::from_meters(tol));
+
+        match exact {
+            None => prop_assert!(pruned.is_none()),
+            Some(e) => {
+                if e.lateral_error.meters() <= tol {
+                    let p = match pruned {
+                    Some(p) => p,
+                    None => {
+                        return Err(proptest::test_runner::TestCaseError::fail(
+                            "within-tol point must survive pruning",
+                        ))
+                    }
+                };
+                    prop_assert!(
+                        (p.lateral_error.meters() - e.lateral_error.meters()).abs() < 1e-6,
+                        "pruned lateral {} != exact {}",
+                        p.lateral_error.meters(),
+                        e.lateral_error.meters()
+                    );
+                } else {
+                    prop_assert!(
+                        pruned.is_none(),
+                        "beyond-tol point must be rejected (tol {tol} m)"
+                    );
+                }
+            }
+        }
     }
 }

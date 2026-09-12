@@ -16,4 +16,4 @@ pub use coordinate::Coordinate;
 pub use distance::{EARTH_RADIUS_METERS, destination, distance};
 pub use interpolation::interpolate;
 pub use polyline::{BoundingBox, bounding_box, polyline_length};
-pub use projection::{Projection, project_to_polyline, project_to_segment};
+pub use projection::{PolylineBounds, Projection, project_to_polyline, project_to_segment};

@@ -16,7 +16,7 @@
 //! The [`overall_score`](MatchScore::overall_score) is a provisional single
 //! number; debugging should use the individual components.
 
-use crate::geo::{bearing, distance, project_to_polyline};
+use crate::geo::{bearing, distance};
 use crate::units::Distance;
 use crate::{Coordinate, Track};
 
@@ -195,10 +195,12 @@ fn robust_length(track: &Track) -> Distance {
 }
 
 fn fraction_near(subject: &Track, geometry: &[Coordinate], tol: Distance) -> f64 {
+    let bounds = crate::geo::PolylineBounds::new(geometry);
     let mut near = 0usize;
     let mut total = 0usize;
     for p in subject.points() {
-        let Some(projection) = project_to_polyline(p.coordinate(), geometry) else {
+        let Some(projection) = bounds.project_within(p.coordinate(), tol) else {
+            total += 1;
             continue;
         };
         total += 1;
@@ -223,6 +225,7 @@ const MIN_DIRECTION_STEP_M: f64 = 20.0;
 
 fn direction_similarity(a: &Track, b: &Track, tol: Distance) -> f64 {
     let pa = polyline(a);
+    let bounds = crate::geo::PolylineBounds::new(&pa);
 
     let mut sum = 0.0f64;
     let mut count = 0usize;
@@ -244,24 +247,22 @@ fn direction_similarity(a: &Track, b: &Track, tol: Distance) -> f64 {
             chord_bearing,
             Distance::from_meters(step / 2.0),
         );
-        let Some(projection) = project_to_polyline(mid, &pa) else {
+        let Some(projection) = bounds.project_within(mid, tol) else {
             chord_start = point.coordinate();
             continue;
         };
 
-        if projection.lateral_error.meters() <= tol.meters() {
-            let seg_from = pa[projection.segment_index];
-            let seg_to = pa[projection.segment_index + 1];
-            let Ok(a_bearing) = bearing(seg_from, seg_to) else {
-                chord_start = point.coordinate();
-                continue;
-            };
+        let seg_from = pa[projection.segment_index];
+        let seg_to = pa[projection.segment_index + 1];
+        let Ok(a_bearing) = bearing(seg_from, seg_to) else {
+            chord_start = point.coordinate();
+            continue;
+        };
 
-            let delta = (chord_bearing.as_radians() - a_bearing.as_radians())
-                .rem_euclid(std::f64::consts::TAU);
-            sum += delta.cos().max(0.0);
-            count += 1;
-        }
+        let delta =
+            (chord_bearing.as_radians() - a_bearing.as_radians()).rem_euclid(std::f64::consts::TAU);
+        sum += delta.cos().max(0.0);
+        count += 1;
 
         chord_start = point.coordinate();
     }

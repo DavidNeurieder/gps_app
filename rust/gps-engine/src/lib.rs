@@ -60,7 +60,7 @@ pub use attempt::{
     },
 };
 pub use error::{GeoError, GpxError, RouteError, TrackError, TrackField};
-pub use geo::{Bearing, Coordinate, Projection};
+pub use geo::{Bearing, Coordinate, PolylineBounds, Projection};
 pub use ghost::{Ghost, GhostState};
 pub use gpx::{parse_gpx, read_gpx, read_gpx_file};
 pub use route::{

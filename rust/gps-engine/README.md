@@ -15,8 +15,12 @@ bindings: it is a pure, deterministic, synchronous library plus a small CLI.
 ```
 cargo test
 cargo run --example analyze
+cargo run --release --example bench -- --tracks 200
 cargo doc --no-deps
 ```
+
+The `bench` example (§34) generates a deterministic synthetic corpus and times
+projection, processing, discovery and the pairwise matching matrix.
 
 Everything can be exercised on Linux without a phone, GPS chip, or internet
 connection.

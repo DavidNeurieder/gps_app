@@ -108,3 +108,94 @@ pub fn project_to_polyline(point: Coordinate, polyline: &[Coordinate]) -> Option
                 .expect("distances are finite")
         })
 }
+
+/// Precomputed per-segment bounding boxes so that many points can be tested
+/// against one polyline with cheap range pruning instead of scanning every
+/// segment each time.
+#[derive(Debug, Clone)]
+pub struct PolylineBounds {
+    polyline: Vec<Coordinate>,
+    bboxes: Vec<BBox>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BBox {
+    min_lat: f64,
+    max_lat: f64,
+    min_lon: f64,
+    max_lon: f64,
+}
+
+impl PolylineBounds {
+    /// Indexes `polyline`'s segments. No copying is avoided: a shared,
+    /// owned snapshot keeps the boxes valid without lifetimes.
+    pub fn new(polyline: &[Coordinate]) -> Self {
+        let bboxes = polyline
+            .windows(2)
+            .map(|pair| {
+                let (a, b) = (pair[0], pair[1]);
+                BBox {
+                    min_lat: a.latitude().min(b.latitude()),
+                    max_lat: a.latitude().max(b.latitude()),
+                    min_lon: a.longitude().min(b.longitude()),
+                    max_lon: a.longitude().max(b.longitude()),
+                }
+            })
+            .collect();
+        Self {
+            polyline: polyline.to_vec(),
+            bboxes,
+        }
+    }
+
+    /// The exact projection of `point` onto the nearest segment, but only if
+    /// it lies within `tol` meters of the polyline.
+    ///
+    /// A segment can only contain a point within `tol` of `point` if its
+    /// bounding box overlaps `point`'s expanded (`±tol`) box, so the scan is
+    /// pruned to those segments. The nearest surviving segment is then
+    /// evaluated exactly, keeping `lateral_error` truthful.
+    pub fn project_within(&self, point: Coordinate, tol: Distance) -> Option<Projection> {
+        let tol_m = tol.meters();
+        if self.polyline.len() < 2 || !tol_m.is_finite() {
+            return None;
+        }
+        if tol_m <= 0.0 {
+            return project_to_polyline(point, &self.polyline)
+                .filter(|p| p.lateral_error.meters() <= tol_m);
+        }
+
+        let d_lat = tol_m / 111_320.0;
+        // Degrees-per-meter of longitude grows toward the poles, so a segment
+        // anywhere in the point's latitude window needs at least the
+        // degrees-per-meter of the most pole-ward latitude in that window.
+        // Using that bound can only widen the box (safe over-pruning, never a
+        // false rejection); near the poles it widens toward the whole world.
+        let pole_ward = (point.latitude().abs() + d_lat).to_radians().cos();
+        let d_lon = tol_m / (pole_ward.max(1e-12) * 111_320.0);
+
+        let p_lat = point.latitude();
+        let p_lon = point.longitude();
+
+        let mut best: Option<Projection> = None;
+        for (index, box_) in self.bboxes.iter().enumerate() {
+            if p_lat - d_lat > box_.max_lat || p_lat + d_lat < box_.min_lat {
+                continue;
+            }
+            if p_lon - d_lon > box_.max_lon || p_lon + d_lon < box_.min_lon {
+                continue;
+            }
+            let projection =
+                project_to_segment(point, self.polyline[index], self.polyline[index + 1], index);
+            if projection.lateral_error.meters() <= tol_m
+                && best
+                    .as_ref()
+                    .map(|b| projection.lateral_error < b.lateral_error)
+                    .unwrap_or(true)
+            {
+                best = Some(projection);
+            }
+        }
+        best
+    }
+}
