@@ -1,0 +1,18 @@
+[package]
+name = "gps-engine"
+description = "Offline GPS track processing, route matching, and ghost comparison engine for running and cycling."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror = "2"
+
+[dev-dependencies]
+proptest = "1"
+
+[[example]]
+name = "analyze"
+path = "examples/analyze.rs"

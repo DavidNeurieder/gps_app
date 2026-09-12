@@ -1,0 +1,7 @@
+/target
+**/target
+Cargo.lock.orig
+**/*.rs.bk
+
+# External dataset downloads stay out of the repository.
+/data/raw
