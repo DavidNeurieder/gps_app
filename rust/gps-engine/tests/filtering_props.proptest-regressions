@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 29257d6acf1a635d4871445a7fbd68eb15d6ae3841734f96b49842090d6e4bff # shrinks to track = Track { points: [TrackPoint { timestamp: Timestamp { unix_ms: 0 }, coordinate: Coordinate { latitude: 0.0, longitude: 0.0 }, altitude: None, speed: None, accuracy: None }, TrackPoint { timestamp: Timestamp { unix_ms: 2000 }, coordinate: Coordinate { latitude: 0.0, longitude: 0.0 }, altitude: None, speed: None, accuracy: None }] }

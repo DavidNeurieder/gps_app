@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 353ce359f7a71809c9507fee7f21ca279031fa57bdbf99e554e6283dd1d2e69a # shrinks to route = Route { geometry: [Coordinate { latitude: 0.0, longitude: 0.0 }, Coordinate { latitude: 0.0, longitude: 0.0 }, Coordinate { latitude: 0.0, longitude: 0.0 }, Coordinate { latitude: 0.0, longitude: 51.70673667909096 }], cumulative: [0.0, 0.0, 0.0, 5749534.7336456785], total: 5749534.7336456785 }, vertice_index = 3
