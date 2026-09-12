@@ -23,12 +23,25 @@ connection.
 
 ## Module map
 
-| Module    | Responsibility                                          |
-|-----------|---------------------------------------------------------|
-| `units`   | `Distance`, `Duration`, `Speed`, `Timestamp` newtypes   |
-| `geo`     | distance, bearing, interpolation, polyline, projection  |
-| `track`   | `TrackPoint` / `Track` model + validation               |
-| `error`   | typed errors                                            |
+| Module      | Responsibility                                              |
+|-------------|-------------------------------------------------------------|
+| `units`     | `Distance`, `Duration`, `Speed`, `Timestamp` newtypes       |
+| `geo`       | distance, bearing, interpolation, polyline, projection      |
+| `track`     | `TrackPoint` / `Track` model, validation, statistics        |
+| `track`     | processing: filter / simplify / resample-by-distance       |
+| `route`     | canonical `Route` model + projection to the distance axis   |
+| `route`     | pairwise matching: structured `MatchScore` diagnostics      |
+| `gpx`       | GPX → `Track` adapter (RFC 3339 times, Garmin speed ext)    |
+| `synthetic` | deterministic synthetic GPS generation for tests            |
+| `error`     | typed errors                                                |
 
-Planned (later phases): `track` processing (filter/simplify/resample), `route`
-+ matching, `attempt`, `ghost`, and `formats::gpx`.
+Planned (later phases): route discovery / canonicalization, `attempt`,
+`ghost`. Matching currently exposes individual metrics (start/end distance,
+length ratio, spatial overlap, direction) rather than one magic score — the
+provisional `overall_score` is documented as tunable against a labeled corpus.
+
+## Fixtures
+
+Small hand-written GPX files live in `testdata/gpx/` and are loaded by
+[`tests/gpx.rs`](tests/gpx.rs). External datasets are out of scope for the
+repository; see `scripts/` in later phases for downloading real material.

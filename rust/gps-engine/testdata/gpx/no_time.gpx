@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="gps-engine fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>No timestamps; engine synthesizes them</name>
+    <trkseg>
+      <trkpt lat="52.50000" lon="13.40000">
+        <ele>30.0</ele>
+      </trkpt>
+      <trkpt lat="52.50005" lon="13.40000">
+        <ele>30.5</ele>
+      </trkpt>
+      <trkpt lat="52.50010" lon="13.40000">
+        <ele>31.0</ele>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

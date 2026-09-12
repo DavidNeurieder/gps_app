@@ -8,6 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+quick-xml = { version = "0.37", default-features = false, features = ["encoding"] }
 thiserror = "2"
 
 [dev-dependencies]

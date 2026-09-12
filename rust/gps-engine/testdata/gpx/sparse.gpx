@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="gps-engine fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Sparse recording with long pauses</name>
+    <trkseg>
+      <trkpt lat="52.50000" lon="13.40000"><ele>35.0</ele><time>2024-06-01T08:00:00Z</time></trkpt>
+      <trkpt lat="52.50005" lon="13.40000"><ele>35.0</ele><time>2024-06-01T09:30:00Z</time></trkpt>
+      <trkpt lat="52.50010" lon="13.40000"><ele>35.0</ele><time>2024-06-01T11:00:00Z</time></trkpt>
+      <trkpt lat="52.50020" lon="13.40000"><ele>35.0</ele><time>2024-06-01T11:00:30Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

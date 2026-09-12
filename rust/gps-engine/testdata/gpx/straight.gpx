@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="gps-engine fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Straight meridian test</name>
+    <trkseg>
+      <trkpt lat="52.50000" lon="13.40000">
+        <ele>35.0</ele>
+        <time>2024-06-01T10:00:00Z</time>
+      </trkpt>
+      <trkpt lat="52.50005" lon="13.40000">
+        <ele>36.1</ele>
+        <time>2024-06-01T10:00:10Z</time>
+      </trkpt>
+      <trkpt lat="52.50010" lon="13.40000">
+        <ele>37.5</ele>
+        <time>2024-06-01T10:00:20Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

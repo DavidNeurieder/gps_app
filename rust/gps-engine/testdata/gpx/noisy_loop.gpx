@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="gps-engine fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Noisy loop (contains an outlier spike)</name>
+    <trkseg>
+      <trkpt lat="52.50000" lon="13.40000"><time>2024-06-01T10:00:00Z</time></trkpt>
+      <trkpt lat="52.50000" lon="13.40020"><time>2024-06-01T10:00:30Z</time></trkpt>
+      <trkpt lat="52.50100" lon="13.40100"><ele>89.0</ele><time>2024-06-01T10:00:45Z</time></trkpt>
+      <trkpt lat="52.50020" lon="13.40020"><time>2024-06-01T10:01:00Z</time></trkpt>
+      <trkpt lat="52.50020" lon="13.40000"><time>2024-06-01T10:01:30Z</time></trkpt>
+      <trkpt lat="52.50000" lon="13.40000"><time>2024-06-01T10:02:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

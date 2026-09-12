@@ -69,3 +69,52 @@ pub enum TrackError {
     #[error("resampling interval {0} m must be finite and positive")]
     InvalidInterval(f64),
 }
+
+/// Errors produced when reading a GPX file into a [`crate::Track`].
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum GpxError {
+    /// The reader failed; the message is the underlying I/O error text.
+    #[error("I/O error while reading GPX: {0}")]
+    Io(String),
+    /// The document is not well-formed XML or violates the GPX structure.
+    #[error("invalid GPX: {0}")]
+    Parse(String),
+    /// A `<trkpt>` element is missing or has a non-numeric `lat`/`lon` attribute.
+    #[error("invalid coordinate in GPX: {0}")]
+    Coordinate(String),
+    /// An `ele`/`speed`/`accuracy` value is not a finite number.
+    #[error("point {index} has {field} value \"{value}\" which is not a finite number")]
+    InvalidValue {
+        /// 0-based index of the offending point.
+        index: usize,
+        /// Which extension or standard field was invalid.
+        field: TrackField,
+        /// The offending text.
+        value: String,
+    },
+    /// A `<time>` value is not a parseable UTC or timezone-qualified
+    /// RFC 3339 timestamp.
+    #[error("point {index} has invalid time \"{value}\": {reason}")]
+    InvalidTime {
+        /// 0-based index of the offending point.
+        index: usize,
+        /// The offending text.
+        value: String,
+        /// Why the timestamp could not be parsed.
+        reason: String,
+    },
+    /// The resulting point set violates [`crate::Track::new`] invariants.
+    #[error("invalid track produced from GPX: {0}")]
+    Track(#[from] TrackError),
+}
+
+/// Errors produced when constructing a [`crate::Route`].
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum RouteError {
+    /// The route has no geometry at all.
+    #[error("route contains no points")]
+    Empty,
+    /// The route has fewer than two points, so length cannot be computed.
+    #[error("route requires at least two points, got {0}")]
+    TooFewPoints(usize),
+}
