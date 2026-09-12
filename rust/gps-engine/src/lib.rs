@@ -26,7 +26,8 @@ pub mod error;
 /// polylines, and projection.
 pub mod geo;
 
-/// GPS activity model: [`TrackPoint`] and validated [`Track`].
+/// GPS activity model: [`TrackPoint`] and validated [`Track`], plus track
+/// statistics and processing (filtering, simplification, resampling).
 pub mod track;
 
 /// Domain value types: [`Distance`], [`Duration`], [`Speed`], [`Timestamp`].
@@ -34,5 +35,8 @@ pub mod units;
 
 pub use error::{GeoError, TrackError, TrackField};
 pub use geo::{Bearing, Coordinate, Projection};
-pub use track::{Track, TrackPoint};
+pub use track::{
+    FilterConfig, MovingConfig, ProcessingReport, SimplifyConfig, Track, TrackPoint, filter,
+    resample_by_distance, simplify,
+};
 pub use units::{Distance, Duration, Speed, Timestamp};

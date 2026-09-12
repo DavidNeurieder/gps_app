@@ -1,7 +1,9 @@
 use crate::error::TrackError;
-use crate::units::{Duration, Timestamp};
+use crate::geo::Coordinate;
+use crate::units::{Distance, Duration, Speed, Timestamp};
 
 use super::point::TrackPoint;
+use super::statistics::MovingConfig;
 
 /// A chronologically ordered GPS activity.
 ///
@@ -41,9 +43,25 @@ impl Track {
         Ok(Track { points })
     }
 
+    /// Constructs a track from points that are already known to be valid;
+    /// used internally by processing stages whose output preserves the
+    /// invariants by construction.
+    pub(crate) fn from_unchecked(points: Vec<TrackPoint>) -> Track {
+        debug_assert!(
+            Track::new(points.clone()).is_ok(),
+            "processing stage produced an invalid track"
+        );
+        Track { points }
+    }
+
     /// All points, in chronological order.
     pub fn points(&self) -> &[TrackPoint] {
         &self.points
+    }
+
+    /// The geographic coordinates of all points, in order.
+    pub fn coordinates(&self) -> Vec<Coordinate> {
+        self.points.iter().map(|p| p.coordinate()).collect()
     }
 
     /// The first point, if any.
@@ -72,5 +90,73 @@ impl Track {
             (Some(first), Some(last)) => last.timestamp().elapsed_since(first.timestamp()),
             _ => Duration::ZERO,
         }
+    }
+
+    /// Total geodesic length of the track.
+    pub fn distance(&self) -> Distance {
+        super::statistics::total_distance(self)
+    }
+
+    /// Elapsed time spent actually moving (see [`MovingConfig`]).
+    pub fn moving_duration(&self, config: &MovingConfig) -> Duration {
+        super::statistics::moving_duration(self, config)
+    }
+
+    /// Elapsed time spent stopped (duration minus moving time, never negative).
+    pub fn paused_duration(&self, config: &MovingConfig) -> Duration {
+        let moving = self.moving_duration(config).as_secs();
+        let elapsed = self.duration().as_secs();
+        Duration::from_secs((elapsed - moving).max(0.0))
+    }
+
+    /// Total positive elevation change in meters.
+    pub fn elevation_gain(&self) -> f64 {
+        super::statistics::elevation_gain(self)
+    }
+
+    /// Total negative elevation change in meters.
+    pub fn elevation_loss(&self) -> f64 {
+        super::statistics::elevation_loss(self)
+    }
+
+    /// Average speed over the total elapsed time.
+    pub fn average_speed(&self) -> Speed {
+        let elapsed = self.duration().as_secs();
+        if elapsed > 0.0 {
+            Speed::from_mps(self.distance().meters() / elapsed)
+        } else {
+            Speed::ZERO
+        }
+    }
+
+    /// Average speed over the moving time only: total distance divided by
+    /// [`Self::moving_duration`]. Stop-segment distances are tiny by
+    /// construction, so counting them has a negligible effect.
+    pub fn moving_speed(&self, config: &MovingConfig) -> Speed {
+        let moving = self.moving_duration(config).as_secs();
+        if moving > 0.0 {
+            Speed::from_mps(self.distance().meters() / moving)
+        } else {
+            Speed::ZERO
+        }
+    }
+
+    /// Removes bad GPS points according to [`super::filtering::FilterConfig`].
+    pub fn filter(
+        &self,
+        config: &super::filtering::FilterConfig,
+    ) -> (Track, super::filtering::ProcessingReport) {
+        super::filtering::filter(self, config)
+    }
+
+    /// Reduces the number of points while preserving shape within tolerance,
+    /// using [`super::simplification::SimplifyConfig`].
+    pub fn simplify(&self, config: &super::simplification::SimplifyConfig) -> Track {
+        super::simplification::simplify(self, config)
+    }
+
+    /// Re-samples the track to an evenly distance-spaced sequence.
+    pub fn resample_by_distance(&self, interval: Distance) -> Result<Track, TrackError> {
+        super::resampling::resample_by_distance(self, interval)
     }
 }

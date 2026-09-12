@@ -65,4 +65,7 @@ pub enum TrackError {
         /// The offending value.
         value: f64,
     },
+    /// A resampling interval that is not finite and positive.
+    #[error("resampling interval {0} m must be finite and positive")]
+    InvalidInterval(f64),
 }
