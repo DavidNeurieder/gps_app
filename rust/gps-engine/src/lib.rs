@@ -14,8 +14,10 @@
 //!
 //! Currently implemented: domain value types ([`units`]), the [`geo`]
 //! primitives, the [`track`] model with construction-time validation and
-//! processing, GPX input ([`gpx`]), synthetic generation ([`synthetic`]), and
-//! the [`route`] model with projection.
+//! processing, GPX input ([`gpx`]), synthetic generation ([`synthetic`]),
+//! the [`route`] model with matching/discovery/canonicalization, the
+//! [`attempt`] representation (GPS → route distance → elapsed time), and
+//! race analysis ([`ghost`]).
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -38,14 +40,28 @@ pub mod gpx;
 /// Canonical polyline routes with a stable distance axis.
 pub mod route;
 
+/// A recording reduced to the route axis: distance ↔ elapsed time, plus
+/// pointwise performance comparison between two attempts.
+pub mod attempt;
+
+/// Race a live attempt against a reference (PB) attempt.
+pub mod ghost;
+
 /// Synthetic GPS generation: deterministic test tracks from clean routes.
 pub mod synthetic;
 
 /// Domain value types: [`Distance`], [`Duration`], [`Speed`], [`Timestamp`].
 pub mod units;
 
+pub use attempt::{
+    Attempt, AttemptError, AttemptSample,
+    performance::{
+        ComparisonConfig, ComparisonPoint, PerformanceComparison, compare as compare_performances,
+    },
+};
 pub use error::{GeoError, GpxError, RouteError, TrackError, TrackField};
 pub use geo::{Bearing, Coordinate, Projection};
+pub use ghost::{Ghost, GhostState};
 pub use gpx::{parse_gpx, read_gpx, read_gpx_file};
 pub use route::{
     CanonicalError, CanonicalizeConfig, DiscoveredRoute, MatchConfig, MatchScore, Route,
