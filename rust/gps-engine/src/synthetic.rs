@@ -322,33 +322,10 @@ fn offset(base: Coordinate, dist: f64, heading: f64) -> Coordinate {
 }
 
 /// Reverses a track: the route plays finish → start while keeping the same
-/// total duration and monotonic ascending timestamps.
+/// total duration and monotonic ascending timestamps. See
+/// [`Track::reversed`].
 pub fn reverse(track: &Track) -> Track {
-    let points = track.points();
-    let start_ms = points
-        .first()
-        .expect("track non-empty")
-        .timestamp()
-        .unix_ms() as f64;
-    let end_ms = points
-        .last()
-        .expect("track non-empty")
-        .timestamp()
-        .unix_ms() as f64;
-    let total_ms = end_ms - start_ms;
-    let spread = (points.len() - 1).max(1) as f64;
-
-    let reversed: Vec<TrackPoint> = points
-        .iter()
-        .rev()
-        .enumerate()
-        .map(|(i, p)| {
-            let t = start_ms + total_ms * (i as f64 / spread);
-            TrackPoint::new(Timestamp::from_unix_ms(t.round() as i64), p.coordinate())
-        })
-        .collect();
-
-    Track::new(reversed).expect("reversed track stays valid")
+    track.reversed()
 }
 
 /// Applies a lateral excursion (a detour) to the middle half of the track,

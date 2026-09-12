@@ -31,13 +31,15 @@ connection.
 | `track`     | processing: filter / simplify / resample-by-distance       |
 | `route`     | canonical `Route` model + projection to the distance axis   |
 | `route`     | pairwise matching: structured `MatchScore` diagnostics      |
+| `route`     | discovery: cluster recordings into routes (`RouteCatalog`)  |
+| `route`     | canonicalization: one robust `Route` from a cluster         |
 | `gpx`       | GPX → `Track` adapter (RFC 3339 times, Garmin speed ext)    |
 | `synthetic` | deterministic synthetic GPS generation for tests            |
 | `error`     | typed errors                                                |
 
-Planned (later phases): route discovery / canonicalization, `attempt`,
-`ghost`. Matching currently exposes individual metrics (start/end distance,
-length ratio, spatial overlap, direction) rather than one magic score — the
+Planned (later phases): `attempt` (progress + performance), `ghost`.
+Matching currently exposes individual metrics (start/end distance, length
+ratio, spatial overlap, direction) rather than one magic score — the
 provisional `overall_score` is documented as tunable against a labeled corpus.
 
 ## Fixtures

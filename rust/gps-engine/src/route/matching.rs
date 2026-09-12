@@ -77,6 +77,49 @@ pub struct MatchScore {
     pub overall_score: f64,
 }
 
+impl MatchScore {
+    /// Conservative "same route?" decision from geometry-only metrics.
+    ///
+    /// Direction is *not* part of the boolean: a route run in reverse is still
+    /// the same route, so reversed recordings keep matching while
+    /// [`direction_similarity`](MatchScore::direction_similarity) is reported
+    /// separately. All thresholds come from `config`.
+    pub fn is_match(&self, config: &MatchConfig) -> bool {
+        self.proximity_ok(config)
+            && self.distance_ratio >= config.min_distance_ratio
+            && self.distance_ratio <= config.max_distance_ratio
+            && self.spatial_overlap >= config.min_spatial_overlap
+    }
+
+    /// Whether the start and finish pairs are within their proximity caps.
+    fn proximity_ok(&self, config: &MatchConfig) -> bool {
+        self.start_distance.meters() <= config.max_start_distance.meters()
+            && self.end_distance.meters() <= config.max_end_distance.meters()
+    }
+}
+
+/// Compares `a` against `b` in either travel orientation, returning the better
+/// matching score when either the forward or the reversed comparison satisfies
+/// `config`; `None` when neither does.
+///
+/// This lets route discovery cluster recordings that run the same route in the
+/// opposite direction. The returned score reports the orientation that
+/// matched.
+pub fn compare_either_direction(a: &Track, b: &Track, config: &MatchConfig) -> Option<MatchScore> {
+    let forward = compare_with(a, b, config);
+    if forward.is_match(config) {
+        return Some(forward);
+    }
+
+    let reversed_b = b.reversed();
+    let reversed = compare_with(a, &reversed_b, config);
+    if reversed.is_match(config) {
+        Some(reversed)
+    } else {
+        None
+    }
+}
+
 /// Compares two tracks with [`MatchConfig::default`].
 pub fn compare(a: &Track, b: &Track) -> MatchScore {
     compare_with(a, b, &MatchConfig::default())
@@ -93,7 +136,7 @@ pub fn compare_with(a: &Track, b: &Track, config: &MatchConfig) -> MatchScore {
         b.end().expect("track non-empty").coordinate(),
     );
 
-    let distance_ratio = a.distance().meters() / b.distance().meters();
+    let distance_ratio = robust_length(a).meters() / robust_length(b).meters();
     let spatial_overlap = overlap(a, b, config);
     let direction_similarity = direction_similarity(a, b, config.lateral_tolerance);
 
@@ -130,6 +173,25 @@ fn overlap(a: &Track, b: &Track, config: &MatchConfig) -> f64 {
 
 fn polyline(track: &Track) -> Vec<Coordinate> {
     track.points().iter().map(|p| p.coordinate()).collect()
+}
+
+/// Along-track length robust to lateral GPS noise: the length of the track
+/// re-sampled onto 50 m chords. Lateral jitter barely inflates a 50 m chord,
+/// so recording-length ratios stay meaningful for the matcher (a raw point
+/// length would be the noisy GPS path, not the route distance).
+fn robust_length(track: &Track) -> Distance {
+    const CHORD_M: f64 = 50.0;
+    match track.resample_by_distance(Distance::from_meters(CHORD_M)) {
+        Ok(resampled) => {
+            let length = resampled.distance().meters();
+            if length > 0.0 {
+                Distance::from_meters(length)
+            } else {
+                track.distance() // too short to span a 50 m chord
+            }
+        }
+        Err(_) => track.distance(),
+    }
 }
 
 fn fraction_near(subject: &Track, geometry: &[Coordinate], tol: Distance) -> f64 {
@@ -291,6 +353,52 @@ mod tests {
             "reversed recording should disagree in direction, got {}",
             score.direction_similarity
         );
+    }
+
+    #[test]
+    fn crossing_routes_do_not_match() {
+        // Two routes of similar length crossing near-perpendicularly at their
+        // midpoint: they share only a tiny region, so they must not match.
+        let route_a = vec![
+            Coordinate::new(52.500, 13.400).unwrap(),
+            Coordinate::new(52.520, 13.400).unwrap(),
+        ];
+        let route_b = vec![
+            Coordinate::new(52.510, 13.390).unwrap(),
+            Coordinate::new(52.510, 13.410).unwrap(),
+        ];
+        let a = cleaned(&generate(&route_a, &SyntheticConfig::clean(1)));
+        let b = cleaned(&generate(&route_b, &SyntheticConfig::clean(2)));
+
+        let score = compare(&a, &b);
+        assert!(
+            score.spatial_overlap < 0.3,
+            "perpendicular crossing routes barely overlap, got {}",
+            score.spatial_overlap
+        );
+        assert!(!score.is_match(&MatchConfig::default()));
+    }
+
+    #[test]
+    fn parallel_routes_do_not_match() {
+        // Two ~1 km parallel lanes 200 m apart: lateral error alone must
+        // separate them (default tolerance is 25 m).
+        let route_a = vec![
+            Coordinate::new(52.500, 13.400).unwrap(),
+            Coordinate::new(52.510, 13.400).unwrap(),
+        ];
+        let offset_west = Coordinate::new(52.500, 13.3980).unwrap();
+        let offset_east = Coordinate::new(52.510, 13.3980).unwrap();
+        let route_b = vec![offset_west, offset_east];
+        let a = generate(&route_a, &SyntheticConfig::clean(1));
+        let b = generate(&route_b, &SyntheticConfig::clean(2));
+
+        let score = compare(&a, &b);
+        assert!(
+            score.spatial_overlap < 0.3,
+            "200 m apart lanes must not count as on-route (25 m tolerance)",
+        );
+        assert!(!score.is_match(&MatchConfig::default()));
     }
 
     #[test]

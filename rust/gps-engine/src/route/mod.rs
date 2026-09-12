@@ -9,9 +9,13 @@
 //! Guardrails and geometry are validated at construction; every method is
 //! pure. Identity, metadata, and user naming live outside the engine.
 
+pub mod canonical;
+pub mod discovery;
 pub mod matching;
 
-pub use matching::{MatchConfig, MatchScore, compare, compare_with};
+pub use canonical::{CanonicalError, CanonicalizeConfig, canonicalize};
+pub use discovery::{DiscoveredRoute, RouteCatalog, TrackAddition};
+pub use matching::{MatchConfig, MatchScore, compare, compare_either_direction, compare_with};
 
 use crate::error::RouteError;
 use crate::geo::{Coordinate, Projection, distance, interpolate, project_to_polyline};

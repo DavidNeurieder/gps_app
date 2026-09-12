@@ -159,4 +159,10 @@ impl Track {
     pub fn resample_by_distance(&self, interval: Distance) -> Result<Track, TrackError> {
         super::resampling::resample_by_distance(self, interval)
     }
+
+    /// Plays the track finish → start while keeping the same total duration and
+    /// monotonic ascending timestamps.
+    pub fn reversed(&self) -> Track {
+        super::reverse::reverse(self)
+    }
 }

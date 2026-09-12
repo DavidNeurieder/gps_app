@@ -47,7 +47,11 @@ pub mod units;
 pub use error::{GeoError, GpxError, RouteError, TrackError, TrackField};
 pub use geo::{Bearing, Coordinate, Projection};
 pub use gpx::{parse_gpx, read_gpx, read_gpx_file};
-pub use route::{MatchConfig, MatchScore, Route, RoutePoint, compare, compare_with};
+pub use route::{
+    CanonicalError, CanonicalizeConfig, DiscoveredRoute, MatchConfig, MatchScore, Route,
+    RouteCatalog, RoutePoint, TrackAddition, canonicalize, compare, compare_either_direction,
+    compare_with,
+};
 pub use track::{
     FilterConfig, MovingConfig, ProcessingReport, SimplifyConfig, Track, TrackPoint, filter,
     resample_by_distance, simplify,
