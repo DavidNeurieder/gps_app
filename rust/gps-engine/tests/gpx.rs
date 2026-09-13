@@ -5,7 +5,7 @@ use gps_engine::{GpxError, Track, parse_gpx, read_gpx, read_gpx_file};
 const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 fn load(name: &str) -> Track {
-    read_gpx_file(format!("{MANIFEST_DIR}/testdata/gpx/{name}")).unwrap()
+    read_gpx_file(format!("{MANIFEST_DIR}/testdata/unit/{name}")).unwrap()
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn sparse_fixture_preserves_duration() {
 
 #[test]
 fn parse_gpx_accepts_reader() {
-    let data = std::fs::read(format!("{MANIFEST_DIR}/testdata/gpx/loop.gpx")).unwrap();
+    let data = std::fs::read(format!("{MANIFEST_DIR}/testdata/unit/loop.gpx")).unwrap();
     let track = parse_gpx(&data).unwrap();
     assert_eq!(track.points().len(), 5);
     let via_reader = read_gpx(std::io::Cursor::new(&data)).unwrap();
@@ -140,7 +140,8 @@ fn zero_or_one_points_are_rejected() {
 
 #[test]
 fn missing_file_is_an_io_error() {
-    let err = read_gpx_file(format!("{MANIFEST_DIR}/testdata/gpx/does_not_exist.gpx")).unwrap_err();
+    let err =
+        read_gpx_file(format!("{MANIFEST_DIR}/testdata/unit/does_not_exist.gpx")).unwrap_err();
     assert!(matches!(err, GpxError::Io(_)));
 }
 

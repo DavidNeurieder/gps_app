@@ -19,7 +19,7 @@ use std::time::Instant;
 use gps_engine::{
     Distance, FilterConfig, MatchConfig, MatchScore, ProcessingReport, RouteCatalog,
     SimplifyConfig, Track, compare_either_direction, compare_with, filter, read_gpx_file,
-    resample_by_distance, simplify,
+    resample_by_distance, simplify, write_gpx_file,
 };
 
 fn main() {
@@ -54,7 +54,7 @@ fn usage() {
 
 usage:
   gps-engine inspect  file.gpx
-  gps-engine process  file.gpx
+  gps-engine process  file.gpx [--out file.gpx]
   gps-engine compare  a.gpx b.gpx
   gps-engine discover ./tracks/
   gps-engine benchmark ./tracks/"#
@@ -137,7 +137,7 @@ fn cmd_inspect(args: &[String]) -> CmdResult {
 }
 
 fn cmd_process(args: &[String]) -> CmdResult {
-    let path = require_one(args, "process")?;
+    let (path, out) = split_out(args)?;
     let raw = load_gpx(Path::new(&path))?;
     let (processed, report) = process(&raw);
 
@@ -149,7 +149,34 @@ fn cmd_process(args: &[String]) -> CmdResult {
     println!("Distance after:  {:>9}", report.distance_after);
     println!();
     print_track_summary(&format!("{path} (processed)"), &processed);
+    if let Some(out) = out {
+        write_gpx_file(&processed, &out).map_err(|e| format!("{out}: {e}"))?;
+        println!("Wrote        {out}");
+    }
     Ok(())
+}
+
+/// Splits `file.gpx [--out file.gpx]` into positional path and optional out.
+fn split_out(args: &[String]) -> Result<(String, Option<String>), String> {
+    if args.is_empty() || args.len() > 3 {
+        return Err("process takes file.gpx [--out file.gpx]".to_string());
+    }
+    let path = args[0].clone();
+    let mut out = None;
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--out" => {
+                if i + 1 >= args.len() {
+                    return Err("--out needs a path".to_string());
+                }
+                out = Some(args[i + 1].clone());
+                i += 2;
+            }
+            other => return Err(format!("unknown argument: {other}")),
+        }
+    }
+    Ok((path, out))
 }
 
 fn score_report(score: &MatchScore, config: &MatchConfig) -> String {

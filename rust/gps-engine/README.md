@@ -16,11 +16,14 @@ bindings: it is a pure, deterministic, synchronous library plus a small CLI.
 cargo test
 cargo run --example analyze
 cargo run --release --example bench -- --tracks 200
+cargo run --example generate_corpus
 cargo doc --no-deps
 ```
 
 The `bench` example (§34) generates a deterministic synthetic corpus and times
-projection, processing, discovery and the pairwise matching matrix.
+projection, processing, discovery and the pairwise matching matrix. The
+`generate_corpus` example (§33) writes the synthetic GPX corpus under
+`testdata/synthetic/`.
 
 Everything can be exercised on Linux without a phone, GPS chip, or internet
 connection.
@@ -30,8 +33,8 @@ connection.
 A companion binary ships with the library:
 
 ```
-cargo run --bin gps-engine -- inspect  testdata/gpx/noisy_loop.gpx
-cargo run --bin gps-engine -- process  testdata/gpx/noisy_loop.gpx
+cargo run --bin gps-engine -- inspect  testdata/unit/noisy_loop.gpx
+cargo run --bin gps-engine -- process  testdata/synthetic/clean.gpx
 cargo run --bin gps-engine -- compare  a.gpx b.gpx
 cargo run --bin gps-engine -- discover ./tracks/
 cargo run --bin gps-engine -- benchmark ./tracks/
@@ -57,18 +60,23 @@ tracks into routes; `benchmark` times discovery and the pairwise matrix
 | `attempt`   | GPS → route distance → elapsed time (`time_at`, `distance_at`) |
 | `attempt`   | performance comparison: pointwise `ComparisonPoint`s        |
 | `ghost`     | PB-vs-live duel: `GhostState { distance, difference, ahead }` |
-| `gpx`       | GPX → `Track` adapter (RFC 3339 times, Garmin speed ext)    |
+| `gpx`       | GPX ↔ `Track` adapter (RFC 3339 times, Garmin speed ext)   |
 | `synthetic` | deterministic synthetic GPS generation for tests            |
 | `error`     | typed errors                                                |
 
-Planned (later phases): property-based tests, benchmark harness, FFI bindings
-for Flutter.
+Planned (later phases): FFI bindings for Flutter.
 Matching currently exposes individual metrics (start/end distance, length
 ratio, spatial overlap, direction) rather than one magic score — the
 provisional `overall_score` is documented as tunable against a labeled corpus.
 
-## Fixtures
+## Fixtures (§33)
 
-Small hand-written GPX files live in `testdata/gpx/` and are loaded by
-[`tests/gpx.rs`](tests/gpx.rs). External datasets are out of scope for the
-repository; see `scripts/` in later phases for downloading real material.
+Three categories, deliberately never mixed:
+
+- `testdata/unit/` — tiny hand-written GPX fixtures (loaded by
+  [`tests/gpx.rs`](tests/gpx.rs)).
+- `testdata/synthetic/` — generated from a known loop by
+  `examples/generate_corpus.rs` (clean/noisy/sparse/gapped/stopped/outliers/
+  reversed/detour) and round-tripped by `tests/roundtrip.rs`.
+- `testdata/real/` — your own recordings; `testdata/real/*.gpx` is git-ignored.
+  External datasets are for the FFI milestone.

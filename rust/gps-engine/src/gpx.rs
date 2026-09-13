@@ -16,7 +16,7 @@
 //! timestamp plus one second (or the epoch, for the first point), keeping the
 //! result ordered and deterministic.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
 
 use quick_xml::Reader;
@@ -148,6 +148,83 @@ pub fn read_gpx(mut reader: impl Read) -> Result<Track, GpxError> {
         .read_to_end(&mut bytes)
         .map_err(|e| GpxError::Io(e.to_string()))?;
     parse_gpx(&bytes)
+}
+
+/// Writes `track` as a GPX 1.1 document to `writer`.
+///
+/// Emits one `<trkseg>` containing every point's `lat`/`lon`, `<ele>` (when
+/// the point has an altitude), and a full-precision `<time>` in UTC. Speed and
+/// accuracy fields are not serialized. Output is deterministic — the same
+/// track always produces byte-identical GPX.
+pub fn write_gpx(track: &Track, writer: &mut impl Write) -> Result<(), GpxError> {
+    let mut body = String::with_capacity(96 * track.points().len());
+    for point in track.points() {
+        let (lat, lon) = (
+            point.coordinate().latitude(),
+            point.coordinate().longitude(),
+        );
+        body.push_str(&format!(
+            "      <trkpt lat=\"{lat:.6}\" lon=\"{lon:.6}\">\n"
+        ));
+        if let Some(ele) = point.altitude() {
+            body.push_str(&format!("        <ele>{ele:.2}</ele>\n"));
+        }
+        body.push_str(&format!(
+            "        <time>{}</time>\n",
+            format_rfc3339(point.timestamp())
+        ));
+        body.push_str("      </trkpt>\n");
+    }
+
+    let mut out = String::new();
+    out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    out.push_str("<gpx version=\"1.1\" creator=\"gps-engine\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n");
+    out.push_str("  <trk>\n");
+    out.push_str("    <name>gps-engine export</name>\n");
+    out.push_str("    <trkseg>\n");
+    out.push_str(&body);
+    out.push_str("    </trkseg>\n");
+    out.push_str("  </trk>\n");
+    out.push_str("</gpx>\n");
+
+    writer
+        .write_all(out.as_bytes())
+        .map_err(|e| GpxError::Io(e.to_string()))
+}
+
+/// Writes `track` as a GPX document to `path`.
+pub fn write_gpx_file(track: &Track, path: impl AsRef<Path>) -> Result<(), GpxError> {
+    let mut file = std::fs::File::create(path).map_err(|e| GpxError::Io(e.to_string()))?;
+    write_gpx(track, &mut file)
+}
+
+/// Formats `timestamp` as UTC RFC 3339 at millisecond precision.
+fn format_rfc3339(timestamp: Timestamp) -> String {
+    let ms = timestamp.unix_ms();
+    let days = ms.div_euclid(86_400_000);
+    let intra_day = ms.rem_euclid(86_400_000);
+    let (year, month, day) = civil_from_days(days);
+    let hour = intra_day / 3_600_000;
+    let minute = (intra_day % 3_600_000) / 60_000;
+    let second = (intra_day % 60_000) / 1_000;
+    let millis = intra_day % 1_000;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
+}
+
+/// Proleptic Gregorian calendar date from days since 1970-01-01.
+///
+/// Inverse of [`days_from_civil`] (Howard Hinnant's `civil_from_days`).
+fn civil_from_days(z: i64) -> (i64, i64, i64) {
+    let z = z + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097; // [0, 146096]
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let d = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
+    let m = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
+    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 /// The element currently being read inside a `<trkpt>`, if any.

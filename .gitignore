@@ -7,3 +7,4 @@ Cargo.lock.orig
 /data/raw
 
 /opencode.txt
+testdata/real/*.gpx

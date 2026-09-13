@@ -62,7 +62,7 @@ pub use attempt::{
 pub use error::{GeoError, GpxError, RouteError, TrackError, TrackField};
 pub use geo::{Bearing, Coordinate, PolylineBounds, Projection};
 pub use ghost::{Ghost, GhostState};
-pub use gpx::{parse_gpx, read_gpx, read_gpx_file};
+pub use gpx::{parse_gpx, read_gpx, read_gpx_file, write_gpx, write_gpx_file};
 pub use route::{
     CanonicalError, CanonicalizeConfig, DiscoveredRoute, MatchConfig, MatchScore, Route,
     RouteCatalog, RoutePoint, TrackAddition, canonicalize, compare, compare_either_direction,
