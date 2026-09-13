@@ -38,4 +38,16 @@ abstract class EngineService {
     required Attempt current,
     required Distance distance,
   });
+
+  /// Deterministically synthesizes a recording of the shared demo loop.
+  ///
+  /// The ghost is built from a PB attempt walked at constant speed, so the
+  /// engine can produce that timeline purely from geometry (no device GPS).
+  /// M4's fake engine and M9's Rust engine both implement it; the app never
+  /// reads raw GPS here.
+  List<TrackPoint> generateRecording({
+    double noiseMeters = 2.0,
+    double speedMetersPerSecond = 2.5,
+    double sampleEverySeconds = 1.0,
+  });
 }

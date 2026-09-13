@@ -19,9 +19,15 @@
 //! [`attempt`] representation (GPS → route distance → elapsed time), and
 //! race analysis ([`ghost`]).
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
+
+// Safety policy: the crate core is `unsafe`-free (denied). The single
+// exception is the [`capi`] module, which must touch raw pointers at the
+// FFI boundary; every unsafe block there carries a documented SAFETY note,
+// enforced by `clippy::undocumented_unsafe_blocks`.
 
 /// Typed errors produced by the engine.
 pub mod error;
@@ -46,6 +52,11 @@ pub mod attempt;
 
 /// Race a live attempt against a reference (PB) attempt.
 pub mod ghost;
+
+/// `#[no_mangle] extern "C"` bridge for the Flutter app's FFI layer (M9).
+#[allow(unsafe_code)]
+#[cfg(not(doc))]
+pub mod capi;
 
 /// Synthetic GPS generation: deterministic test tracks from clean routes.
 pub mod synthetic;

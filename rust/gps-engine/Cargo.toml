@@ -7,6 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+crate-type = ["rlib", "cdylib"]
+
 [dependencies]
 quick-xml = { version = "0.37", default-features = false, features = ["encoding"] }
 thiserror = "2"

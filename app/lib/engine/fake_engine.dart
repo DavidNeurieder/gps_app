@@ -37,6 +37,7 @@ class FakeEngineService implements EngineService {
   static const String riverLoopId = 'river-loop';
 
   /// Generates a deterministic recording of the river loop.
+  @override
   List<TrackPoint> generateRecording({
     double noiseMeters = 2.0,
     double speedMetersPerSecond = 2.5,
