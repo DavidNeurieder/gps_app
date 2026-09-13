@@ -11,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../engine/models.dart';
 import '../../../widgets/performance_gap.dart';
+import '../../../widgets/route_map.dart';
 import '../application/recording_controller.dart';
 
 class LiveRunScreen extends ConsumerWidget {
@@ -56,30 +57,46 @@ class LiveRunScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.md),
               ],
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        state.distance.format(),
-                        key: const ValueKey('live-distance'),
-                        style: textTheme.displayMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Text(
+                      state.distance.format(),
+                      key: const ValueKey('live-distance'),
+                      style: textTheme.displayMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                      const SizedBox(height: AppSpacing.lg),
-                      if (state.ghostGap case final gap?)
-                        PerformanceGap(
+                    ),
+                  ),
+                  if (state.ghostGap case final gap?)
+                    SizedBox(
+                      width: 168,
+                      child: FittedBox(
+                        alignment: Alignment.centerRight,
+                        fit: BoxFit.scaleDown,
+                        child: PerformanceGap(
                           difference: gap.timeDifference,
                           distance: gap.distance,
                           state: gapState,
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Expanded(
+                child: RouteMap(
+                  geometry: state.route?.geometry ?? const [],
+                  you: state.currentPosition ??
+                      state.route?.geometry.first ??
+                      const GeoPoint(latitude: 51.96, longitude: 7.63),
+                  youProgress: state.routeProgress,
+                  ghost: state.ghostPosition,
+                  name: state.route?.name,
                 ),
               ),
               Padding(

@@ -211,6 +211,7 @@ class LiveRunState {
     this.gpsQuality = 'good',
     this.hasUnsavedData = false,
     this.route,
+    this.ghostPosition,
   });
 
   final RunStatus status;
@@ -234,6 +235,10 @@ class LiveRunState {
 
   /// The selected route, when recognised (§11). `null` = "new route".
   final Route? route;
+
+  /// Rendered position of the PB ghost at the live runner's *elapsed* time
+  /// (the runner races the ghost, §14). `null` when racing no ghost.
+  final GeoPoint? ghostPosition;
 }
 
 /// Position along a polyline at [distanceMeters] from its start (linear

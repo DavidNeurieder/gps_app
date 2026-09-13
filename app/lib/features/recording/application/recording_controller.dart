@@ -147,15 +147,42 @@ class RecordingController extends Notifier<LiveRunState?> {
     final position = pointAlongPolyline(session.geometry, session.distanceM);
 
     GhostState? gap;
+    GeoPoint? ghostPosition;
     if (session.ghost != null) {
       gap = _gapAt(session, session.distanceM);
+      final ghostDistance = _ghostDistanceAt(session, session.moving.seconds);
+      ghostPosition =
+          pointAlongPolyline(session.geometry, ghostDistance);
     }
 
     _emit(
       status: RunStatus.running,
       position: position,
       gap: gap,
+      ghostPosition: ghostPosition,
     );
+  }
+
+  /// Distance the PB ghost has covered by [liveSeconds] of live moving time.
+  double _ghostDistanceAt(_RecSession session, double liveSeconds) {
+    final samples = session.ghost!.samples;
+    if (samples.isEmpty) {
+      return 0;
+    }
+    if (liveSeconds <= samples.first.elapsed.seconds) {
+      return samples.first.distance.meters;
+    }
+    for (var i = 1; i < samples.length; i++) {
+      if (liveSeconds <= samples[i].elapsed.seconds) {
+        final a = samples[i - 1];
+        final b = samples[i];
+        final span = b.elapsed.seconds - a.elapsed.seconds;
+        final fraction = span <= 0 ? 0 : (liveSeconds - a.elapsed.seconds) / span;
+        return a.distance.meters +
+            (b.distance.meters - a.distance.meters) * fraction;
+      }
+    }
+    return samples.last.distance.meters;
   }
 
   GhostState _gapAt(_RecSession session, double distanceM) {
@@ -243,6 +270,7 @@ if (route.personalBest case final pb?) {
     required RunStatus status,
     GeoPoint? position,
     GhostState? gap,
+    GeoPoint? ghostPosition,
     bool hasUnsavedData = true,
   }) {
     final session = _requireSession();
@@ -260,6 +288,7 @@ if (route.personalBest case final pb?) {
       gpsQuality: status == RunStatus.gpsAcquiring ? 'reduced' : 'good',
       hasUnsavedData: hasUnsavedData,
       route: session.route,
+      ghostPosition: ghostPosition ?? state?.ghostPosition,
     );
   }
 

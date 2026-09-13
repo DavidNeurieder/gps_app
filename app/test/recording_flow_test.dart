@@ -41,6 +41,10 @@ void main() {
     expect(find.text('PAUSE'), findsOneWidget);
     expect(find.text('FINISH'), findsOneWidget);
 
+    // Map is live: YOU + PB ghost markers on screen with a route name.
+    expect(find.byKey(const ValueKey('you-marker')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ghost-marker')), findsOneWidget);
+
     // Moves during the run and shows the hero gap.
     await tester.pump(const Duration(seconds: 2));
     expect(find.byType(PerformanceGap), findsOneWidget);

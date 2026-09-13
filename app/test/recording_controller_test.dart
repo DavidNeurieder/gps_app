@@ -136,6 +136,39 @@ void main() {
     });
   });
 
+  test('ghost marks the PB distance at the live elapsed time', () {
+    fakeAsync((async) {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      keepAlive(c);
+      final notifier = c.read(recordingControllerProvider.notifier);
+      notifier.ensureSession([_route]);
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 1000));
+      notifier.beginRun();
+
+      async.elapse(const Duration(seconds: 30));
+      final a = state(c)!;
+      expect(a.currentPosition, isNotNull);
+      expect(a.ghostPosition, isNotNull);
+
+      async.elapse(const Duration(seconds: 30));
+      final b = state(c)!;
+      expect(b.ghostPosition, isNotNull);
+      // The ghost advances along the route while the run goes on.
+      expect(
+        haversineMeters(a.ghostPosition!, b.ghostPosition!),
+        greaterThan(0),
+      );
+
+      // Ghost runs at a PB pace different from ours, so positions differ.
+      expect(
+        haversineMeters(b.ghostPosition!, b.currentPosition!),
+        greaterThan(0),
+      );
+    });
+  });
+
   test('continue without route clears the ghost', () {
     fakeAsync((async) {
       final c = ProviderContainer();
