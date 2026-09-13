@@ -92,6 +92,11 @@ fn synthetic_corpus_files_parse() {
         .expect("synthetic corpus exists; run `cargo run --example generate_corpus`")
         .filter_map(|e| e.ok())
         .map(|e| e.path())
+        .filter(|p| {
+            p.extension()
+                .map(|ext| ext.eq_ignore_ascii_case("gpx"))
+                .unwrap_or(false)
+        })
         .collect();
     entries.sort();
     assert!(!entries.is_empty(), "corpus directory must not be empty");

@@ -46,8 +46,8 @@ impl Default for MatchConfig {
         Self {
             lateral_tolerance: Distance::from_meters(25.0),
             min_spatial_overlap: 0.6,
-            min_distance_ratio: 0.85,
-            max_distance_ratio: 1.18,
+            min_distance_ratio: 0.70,
+            max_distance_ratio: 1.45,
             max_start_distance: Distance::from_meters(150.0),
             max_end_distance: Distance::from_meters(150.0),
         }

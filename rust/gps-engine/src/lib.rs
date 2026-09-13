@@ -50,6 +50,9 @@ pub mod ghost;
 /// Synthetic GPS generation: deterministic test tracks from clean routes.
 pub mod synthetic;
 
+/// Standard processing pipeline and labeled-corpus evaluation (§33/§38–40).
+pub mod evaluate;
+
 /// Domain value types: [`Distance`], [`Duration`], [`Speed`], [`Timestamp`].
 pub mod units;
 
@@ -60,6 +63,7 @@ pub use attempt::{
     },
 };
 pub use error::{GeoError, GpxError, RouteError, TrackError, TrackField};
+pub use evaluate::{ConfusionMatrix, LabeledPair, evaluate, parse_manifest, standard_pipeline};
 pub use geo::{Bearing, Coordinate, PolylineBounds, Projection};
 pub use ghost::{Ghost, GhostState};
 pub use gpx::{parse_gpx, read_gpx, read_gpx_file, write_gpx, write_gpx_file};

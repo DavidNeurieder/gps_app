@@ -34,6 +34,7 @@ fn main() {
         "process" => cmd_process(&args[2..]),
         "compare" => cmd_compare(&args[2..]),
         "discover" => cmd_discover(&args[2..]),
+        "evaluate" => cmd_evaluate(&args[2..]),
         "benchmark" => cmd_benchmark(&args[2..]),
         "help" | "--help" | "-h" => {
             usage();
@@ -53,11 +54,12 @@ fn usage() {
         r#"gps-engine — companion CLI
 
 usage:
-  gps-engine inspect  file.gpx
-  gps-engine process  file.gpx [--out file.gpx]
-  gps-engine compare  a.gpx b.gpx
-  gps-engine discover ./tracks/
-  gps-engine benchmark ./tracks/"#
+  gps-engine inspect    file.gpx
+  gps-engine process    file.gpx [--out file.gpx]
+  gps-engine compare    a.gpx b.gpx
+  gps-engine discover   ./tracks/
+  gps-engine evaluate   ./testdata/synthetic/
+  gps-engine benchmark  ./tracks/"#
     );
 }
 
@@ -256,6 +258,36 @@ fn cmd_discover(args: &[String]) -> CmdResult {
             format_hms(rep.duration())
         );
     }
+    Ok(())
+}
+
+/// Runs the §39 manifest evaluation against a corpus directory.
+fn cmd_evaluate(args: &[String]) -> CmdResult {
+    let dir = require_one(args, "evaluate")?;
+    let manifest_path = std::path::Path::new(&dir).join("manifest.json");
+    let manifest_text =
+        std::fs::read_to_string(&manifest_path).map_err(|e| format!("{dir}/manifest.json: {e}"))?;
+    let labels = gps_engine::parse_manifest(&manifest_text)?;
+
+    let files = collect_gpx_files(std::path::Path::new(&dir))?;
+    let mut tracks: std::collections::HashMap<String, Track> = std::collections::HashMap::new();
+    for file in &files {
+        let name = file
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .ok_or_else(|| format!("{}: no file name", file.display()))?;
+        let raw = load_gpx(file)?;
+        tracks.insert(name, process(&raw).0);
+    }
+
+    println!(
+        "Evaluate  {dir}  ({} labeled pairs, {} tracks)",
+        labels.len(),
+        tracks.len()
+    );
+    println!("──────────────────────────────────────────────");
+    let matrix = gps_engine::evaluate(&labels, &tracks, &MatchConfig::default());
+    println!("{}", matrix.report());
     Ok(())
 }
 
