@@ -182,18 +182,38 @@ class ProcessedTrack {
   final Elapsed movingTime;
 }
 
+/// Recording state machine states (§8).
+enum RunStatus {
+  idle,
+  preparing,
+  gpsAcquiring,
+  ready,
+  running,
+  paused,
+  finishing,
+  completed,
+  error,
+}
+
 /// Live recording state delivered to the UI at roughly 1–2 Hz (§7).
+///
+/// The UI is a pure projection of this state (§9): every screen reads it and
+/// derives what to show — it never mutates recording logic itself.
 class LiveRunState {
   const LiveRunState({
+    required this.status,
     required this.elapsed,
     required this.distance,
     this.currentPosition,
     required this.pace,
     this.ghostGap,
     required this.routeProgress,
-    this.gpsQuality = 'searching',
+    this.gpsQuality = 'good',
+    this.hasUnsavedData = false,
+    this.route,
   });
 
+  final RunStatus status;
   final Elapsed elapsed;
   final Distance distance;
   final GeoPoint? currentPosition;
@@ -205,7 +225,42 @@ class LiveRunState {
   /// Fraction of the route completed, 0..1.
   final double routeProgress;
 
+  /// 'good' | 'reduced' | 'poor' (§17).
   final String gpsQuality;
+
+  /// True while the run holds state that isn't persisted yet (§9). Cleared
+  /// once the completed run is saved (M11).
+  final bool hasUnsavedData;
+
+  /// The selected route, when recognised (§11). `null` = "new route".
+  final Route? route;
+}
+
+/// Position along a polyline at [distanceMeters] from its start (linear
+/// interpolation on segment length). Returns `null` when out of range.
+///
+/// NOTE: a pure display/rendering helper for the fake engine and map; the real
+/// engine (M9) owns geometry interpolation.
+GeoPoint? pointAlongPolyline(List<GeoPoint> geometry, double distanceMeters) {
+  if (geometry.isEmpty || distanceMeters < 0) {
+    return null;
+  }
+  var walked = 0.0;
+  for (var i = 1; i < geometry.length; i++) {
+    final segment = haversineMeters(geometry[i - 1], geometry[i]);
+    if (walked + segment >= distanceMeters) {
+      final fraction = (distanceMeters - walked) / segment;
+      final t = fraction.clamp(0.0, 1.0);
+      return GeoPoint(
+        latitude: geometry[i - 1].latitude +
+            (geometry[i].latitude - geometry[i - 1].latitude) * t,
+        longitude: geometry[i - 1].longitude +
+            (geometry[i].longitude - geometry[i - 1].longitude) * t,
+      );
+    }
+    walked += segment;
+  }
+  return geometry.last;
 }
 
 /// How the live run compares to the reference at a point on the route (§45).

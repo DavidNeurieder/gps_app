@@ -1,0 +1,75 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:gps_app/app/app.dart';
+
+import 'package:gps_app/widgets/performance_gap.dart';
+
+void main() {
+  Finder tab(String label) =>
+      find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+
+  /// Drives the fake-GPS acquisition to READY.
+  Future<void> waitReady(WidgetTester tester) async {
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 600));
+  }
+
+  testWidgets('pre-run reaches READY TO RUN with GPS', (tester) async {
+    await tester.pumpWidget(const GpsApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(tab('Record'));
+    await tester.pump();
+    await waitReady(tester);
+
+    expect(find.text('READY TO RUN'), findsOneWidget);
+    expect(find.text('GPS READY'), findsOneWidget);
+    expect(find.text('River Loop'), findsOneWidget);
+    expect(find.text('START'), findsOneWidget);
+  });
+
+  testWidgets('start, live gap, pause, resume, finish, done', (tester) async {
+    await tester.pumpWidget(const GpsApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(tab('Record'));
+    await tester.pump();
+    await waitReady(tester);
+
+    await tester.tap(find.text('START'));
+    await tester.pump();
+    expect(find.text('PAUSE'), findsOneWidget);
+    expect(find.text('FINISH'), findsOneWidget);
+
+    // Moves during the run and shows the hero gap.
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byType(PerformanceGap), findsOneWidget);
+    final distanceText = tester.widget<Text>(
+      find.byKey(const ValueKey('live-distance')),
+    ).data;
+    expect(distanceText, isNot('0 m'));
+    expect(distanceText, isNot('0.00 km'));
+
+    // Pause freezes distance.
+    await tester.tap(find.text('PAUSE'));
+    await tester.pump();
+    expect(find.text('PAUSED'), findsOneWidget);
+    expect(find.text('RESUME'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('live-distance'))).data,
+      distanceText,
+    );
+
+    // Resume moves again.
+    await tester.tap(find.text('RESUME'));
+    await tester.pump();
+    expect(find.text('PAUSE'), findsOneWidget);
+
+    // Finish completes the run.
+    await tester.tap(find.text('FINISH'));
+    await tester.pump();
+    expect(find.text('RUN COMPLETE'), findsOneWidget);
+    expect(find.byType(PerformanceGap), findsNothing);
+  });
+}

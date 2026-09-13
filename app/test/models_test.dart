@@ -62,6 +62,7 @@ void main() {
 
     test('live run state carries route progress', () {
       final live = LiveRunState(
+        status: RunStatus.running,
         elapsed: Elapsed.minutes(8),
         distance: Distance.meters(1240),
         currentPosition: const GeoPoint(latitude: 52.5, longitude: 13.3),

@@ -29,8 +29,10 @@ void main() {
     expect(find.text('Route library lands with M12.'), findsOneWidget);
 
     await tester.tap(tab('Record'));
-    await tester.pumpAndSettle();
-    expect(find.text('Recording arrives with M6'), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('READY TO RUN'), findsOneWidget);
 
     await tester.tap(tab('Home'));
     await tester.pumpAndSettle();
@@ -42,7 +44,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Start a run'));
-    await tester.pumpAndSettle();
-    expect(find.text('Recording arrives with M6'), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('READY TO RUN'), findsOneWidget);
   });
 }

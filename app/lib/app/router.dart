@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/home/presentation/home_screen.dart';
-import '../features/recording/presentation/record_screen.dart';
+import '../features/recording/presentation/record_flow_screen.dart';
 import '../features/routes/presentation/routes_screen.dart';
 import 'app_shell.dart';
 
@@ -28,7 +28,7 @@ GoRouter buildRouter() {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/record',
-              builder: (context, state) => const RecordScreen(),
+              builder: (context, state) => const RecordFlowScreen(),
             ),
           ]),
           StatefulShellBranch(routes: [
