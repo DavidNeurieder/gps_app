@@ -1,0 +1,253 @@
+/// Domain models — lightweight Dart representations of Rust engine concepts
+/// (§5 of the app plan). Pure data plus small derived helpers; they never
+/// contain algorithms that duplicate the Rust engine.
+library;
+
+import 'dart:math' as math;
+
+import '../core/units.dart';
+
+/// A geographic position in decimal degrees (WGS84).
+class GeoPoint {
+  const GeoPoint({required this.latitude, required this.longitude});
+
+  final double latitude;
+  final double longitude;
+
+  @override
+  bool operator ==(Object other) =>
+      other is GeoPoint &&
+      (latitude - other.latitude).abs() < 1e-9 &&
+      (longitude - other.longitude).abs() < 1e-9;
+
+  @override
+  int get hashCode => Object.hash(latitude, longitude);
+
+  @override
+  String toString() => 'GeoPoint($latitude, $longitude)';
+}
+
+/// One recorded GPS fix.
+class TrackPoint {
+  const TrackPoint({
+    required this.position,
+    this.altitudeMeters,
+    required this.timestamp,
+  });
+
+  final GeoPoint position;
+  final double? altitudeMeters;
+  final DateTime timestamp;
+}
+
+/// Cumulative sample on the route distance axis: how far, by what time.
+class AttemptSample {
+  const AttemptSample({required this.distance, required this.elapsed});
+
+  final Distance distance;
+  final Elapsed elapsed;
+}
+
+/// A canonical route the user can run again.
+class Route {
+  const Route({
+    required this.id,
+    required this.name,
+    required this.distance,
+    required this.geometry,
+    this.attemptCount = 0,
+    this.personalBest,
+  });
+
+  final String id;
+  final String name;
+  final Distance distance;
+  final List<GeoPoint> geometry;
+  final int attemptCount;
+  final Elapsed? personalBest;
+}
+
+/// A completed or in-progress recording.
+class Activity {
+  const Activity({
+    required this.id,
+    this.routeId,
+    required this.startedAt,
+    this.duration,
+    this.distance,
+    this.performance,
+  });
+
+  final String id;
+  final String? routeId;
+  final DateTime startedAt;
+  final Elapsed? duration;
+  final Distance? distance;
+  final String? performance;
+}
+
+/// One attempt reduced to the route axis (GPS → distance ↔ elapsed time).
+class Attempt {
+  const Attempt({
+    required this.activityId,
+    required this.routeId,
+    required this.elapsed,
+    required this.samples,
+  });
+
+  final String activityId;
+  final String routeId;
+  final Elapsed elapsed;
+  final List<AttemptSample> samples;
+}
+
+/// A reference attempt (the PB) to ghost against.
+class Ghost {
+  const Ghost({required this.attemptId, required this.samples});
+
+  final String attemptId;
+  final List<AttemptSample> samples;
+}
+
+/// Where the live run stands relative to the ghost at a given distance.
+class GhostState {
+  const GhostState({
+    required this.distance,
+    required this.timeDifference,
+    required this.ahead,
+  });
+
+  final Distance distance;
+
+  /// `current - reference`: positive means the live run is *behind*.
+  final Elapsed timeDifference;
+
+  /// `true` when the live run is ahead of the reference at this distance.
+  final bool ahead;
+}
+
+/// Structured similarity report between two recorded routes.
+class MatchScore {
+  const MatchScore({
+    required this.startDistance,
+    required this.endDistance,
+    required this.distanceRatio,
+    required this.spatialOverlap,
+    required this.directionSimilarity,
+    required this.overallScore,
+  });
+
+  final Distance startDistance;
+  final Distance endDistance;
+
+  /// Recording length ratio (a/b), 0..∞.
+  final double distanceRatio;
+
+  /// Fraction of each track near the other's geometry, 0..1.
+  final double spatialOverlap;
+
+  /// Directional agreement of matched segments, 0..1.
+  final double directionSimilarity;
+
+  /// Provisional aggregate, 0..1.
+  final double overallScore;
+}
+
+/// A route-match decision plus its diagnostics.
+class RouteMatchResult {
+  const RouteMatchResult({required this.score, required this.sameRoute});
+
+  final MatchScore score;
+  final bool sameRoute;
+}
+
+/// Report returned by [`EngineService.processTrack`].
+class ProcessedTrack {
+  const ProcessedTrack({
+    required this.id,
+    required this.inputPoints,
+    required this.outputPoints,
+    required this.originalDistance,
+    required this.processedDistance,
+    required this.duration,
+    required this.movingTime,
+  });
+
+  final String id;
+  final int inputPoints;
+  final int outputPoints;
+  final Distance originalDistance;
+  final Distance processedDistance;
+  final Elapsed duration;
+  final Elapsed movingTime;
+}
+
+/// Live recording state delivered to the UI at roughly 1–2 Hz (§7).
+class LiveRunState {
+  const LiveRunState({
+    required this.elapsed,
+    required this.distance,
+    this.currentPosition,
+    required this.pace,
+    this.ghostGap,
+    required this.routeProgress,
+    this.gpsQuality = 'searching',
+  });
+
+  final Elapsed elapsed;
+  final Distance distance;
+  final GeoPoint? currentPosition;
+  final Speed pace;
+
+  /// How the live run compares to the ghost at the current distance.
+  final GhostState? ghostGap;
+
+  /// Fraction of the route completed, 0..1.
+  final double routeProgress;
+
+  final String gpsQuality;
+}
+
+/// How the live run compares to the reference at a point on the route (§45).
+enum AheadBehind {
+  ahead,
+  behind,
+  tied,
+  unknown;
+
+  static AheadBehind fromGap(GhostState gap) {
+    if (gap.timeDifference.seconds == 0) {
+      return AheadBehind.tied;
+    }
+    return gap.ahead ? AheadBehind.ahead : AheadBehind.behind;
+  }
+}
+
+/// Great-circle distance in meters (haversine approximation).
+///
+/// NOTE: this duplicate of the Rust `geo` distance exists *only* so the fake
+/// engine and UI can render deterministic demo data. The real engine (M9)
+/// owns distance — the fake never needs to be numerically identical.
+double haversineMeters(GeoPoint a, GeoPoint b) {
+  const earthRadiusM = 6_371_000.0;
+  final dLat = _rad(a.latitude - b.latitude);
+  final dLon = _rad(a.longitude - b.longitude);
+  final lat1 = _rad(a.latitude);
+  final lat2 = _rad(b.latitude);
+  final sLat = math.sin(dLat / 2);
+  final sLon = math.sin(dLon / 2);
+  final h = sLat * sLat +
+      math.cos(lat1) * math.cos(lat2) * sLon * sLon;
+  return 2 * earthRadiusM * math.asin(math.min(1.0, math.sqrt(h)));
+}
+
+/// Total along-polyline distance of a list of positions, in meters.
+double polylineMeters(List<GeoPoint> points) {
+  var total = 0.0;
+  for (var i = 1; i < points.length; i++) {
+    total += haversineMeters(points[i - 1], points[i]);
+  }
+  return total;
+}
+
+double _rad(double degrees) => degrees * (3.141592653589793 / 180.0);

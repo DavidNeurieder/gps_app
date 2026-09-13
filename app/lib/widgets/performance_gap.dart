@@ -1,0 +1,109 @@
+/// The most important component: the YOU vs GHOST gap (§45).
+///
+/// This widget is the visual identity of the app. It takes the live gap and
+/// renders one of four states — ahead, behind, tied, unknown — using the
+/// semantic colors from the design system (M2).
+library;
+
+import 'package:flutter/material.dart';
+
+import '../core/theme/app_colors.dart';
+import '../core/theme/app_theme.dart';
+import '../core/units.dart';
+import '../engine/models.dart';
+
+/// Stable, human-facing label for each state.
+const Map<AheadBehind, String> _states = <AheadBehind, String>{
+  AheadBehind.ahead: 'AHEAD',
+  AheadBehind.behind: 'BEHIND',
+  AheadBehind.tied: 'TIED',
+  AheadBehind.unknown: '—',
+};
+
+class PerformanceGap extends StatelessWidget {
+  const PerformanceGap({
+    super.key,
+    required this.difference,
+    required this.distance,
+    required this.state,
+  });
+
+  /// Signed difference (`current - reference`); positive is behind.
+  final Elapsed difference;
+
+  /// Distance at which the gap is measured.
+  final Distance distance;
+
+  final AheadBehind state;
+
+  Color get _color => switch (state) {
+        AheadBehind.ahead => AppColors.ahead,
+        AheadBehind.behind => AppColors.behind,
+        AheadBehind.tied => AppColors.you,
+        AheadBehind.unknown => AppColors.textMuted,
+      };
+
+  /// Signed label, e.g. `0:12` (ahead) or `+0:12` (behind).
+  String get _label => switch (state) {
+        AheadBehind.ahead || AheadBehind.tied => difference.format(),
+        AheadBehind.behind => '+${difference.format()}',
+        AheadBehind.unknown => '—',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _label,
+          style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                color: _color,
+                fontWeight: FontWeight.w700,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${_states[state]} · at ${distance.format()}',
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        const _ProgressTrack(color: AppColors.ahead),
+      ],
+    );
+  }
+}
+
+/// Decorative YOU vs GHOST progress track.
+class _ProgressTrack extends StatelessWidget {
+  const _ProgressTrack({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 8,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: FractionallySizedBox(
+          alignment: Alignment.centerLeft,
+          widthFactor: 0.12,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
