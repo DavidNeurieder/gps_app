@@ -8,6 +8,7 @@ import '../features/activity/presentation/activity_detail_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/recording/presentation/record_flow_screen.dart';
 import '../features/result/presentation/result_screen.dart';
+import '../features/routes/presentation/route_detail_screen.dart';
 import '../features/routes/presentation/routes_screen.dart';
 import 'app_shell.dart';
 
@@ -51,6 +52,11 @@ GoRouter buildRouter() {
         builder: (context, state) => ActivityDetailScreen(
           activityId: state.pathParameters['id']!,
         ),
+      ),
+      GoRoute(
+        path: '/route/:id',
+        builder: (context, state) =>
+            RouteDetailScreen(routeId: state.pathParameters['id']!),
       ),
     ],
     errorBuilder: (context, state) => const _NotFound(),

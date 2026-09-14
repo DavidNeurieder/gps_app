@@ -43,7 +43,10 @@ class HomeScreen extends ConsumerWidget {
             const _SectionHeader(title: 'Routes'),
             const SizedBox(height: AppSpacing.sm),
             for (final route in routes) ...[
-              _RouteCard(route: route, onTap: () => context.go('/routes')),
+              _RouteCard(
+                route: route,
+                onTap: () => context.push('/route/${route.id}'),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
           ],

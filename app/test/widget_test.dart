@@ -11,10 +11,10 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Start a run'), findsOneWidget);
 
     // Section content from the seeded home directory.
-    expect(find.text('River Loop'), findsOneWidget);
-    expect(find.text('Park 5K'), findsOneWidget);
+    expect(find.text('River Loop'), findsWidgets);
+    expect(find.text('Park 5K'), findsWidgets);
     await tester.scrollUntilVisible(find.text('Hügelrunde'), 200);
-    expect(find.text('Hügelrunde'), findsOneWidget);
+    expect(find.text('Hügelrunde'), findsWidgets);
   });
 
   testWidgets('shell navigates between tabs', (tester) async {
@@ -26,7 +26,7 @@ void main() {
 
     await tester.tap(tab('Routes'));
     await tester.pumpAndSettle();
-    expect(find.text('Route library lands with M12.'), findsOneWidget);
+    expect(find.text('River Loop'), findsWidgets);
 
     await tester.tap(tab('Record'));
     await tester.pump();

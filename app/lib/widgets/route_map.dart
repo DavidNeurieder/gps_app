@@ -23,6 +23,7 @@ class RouteMap extends StatefulWidget {
     required this.youProgress,
     this.ghost,
     this.name,
+    this.staticView = false,
   });
 
   final List<GeoPoint> geometry;
@@ -38,6 +39,10 @@ class RouteMap extends StatefulWidget {
 
   /// Route name shown as a corner label.
   final String? name;
+
+  /// Renders the whole route fitted to the viewport with no markers,
+  /// no follow and no panning — the route-detail thumbnail (§23).
+  final bool staticView;
 
   @override
   State<RouteMap> createState() => _RouteMapState();
@@ -67,7 +72,24 @@ class _RouteMapState extends State<RouteMap> {
     return LayoutBuilder(builder: (context, constraints) {
       final viewport = Size(constraints.maxWidth, constraints.maxHeight);
       final world = _WorldFit(geometry: widget.geometry, viewport: viewport);
-      final shift = _follow ? Offset.zero : _pan;
+      final follow = widget.staticView ? false : _follow;
+      final shift = follow ? Offset.zero : _pan;
+
+      if (widget.staticView) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: CustomPaint(
+            painter: _MapPainter(
+              world: world,
+              shift: Offset.zero,
+              follow: false,
+              followAt: widget.you,
+              geometry: widget.geometry,
+              youProgress: widget.youProgress,
+            ),
+          ),
+        );
+      }
 
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
