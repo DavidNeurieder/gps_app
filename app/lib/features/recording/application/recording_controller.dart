@@ -19,6 +19,7 @@ import '../../../core/units.dart';
 import '../../../app/dependencies.dart';
 import '../../../engine/fake_engine.dart';
 import '../../../engine/models.dart';
+import '../../../persistence/persistence.dart';
 
 /// Null until a run session exists; otherwise the current live state.
 final recordingControllerProvider =
@@ -228,11 +229,96 @@ class RecordingController extends Notifier<LiveRunState?> {
     _emit(
       status: RunStatus.completed,
       gap: gap,
-      hasUnsavedData: false,
+      hasUnsavedData: true,
     );
     _timer?.cancel();
     _timer = null;
+    // Persist in the background; the flag clears when the save lands.
+    _persistCompletedRun();
   }
+
+  /// Saves the finished run into the activity repository (M10, §27).
+  Future<void> _persistCompletedRun() async {
+    final session = _requireSession();
+    final track = _synthesizeTrack(session);
+    final routeId = session.route?.id ?? await _recognizeRoute(track);
+    final activity = Activity(
+      id: 'act-${session.startedAt.millisecondsSinceEpoch}',
+      routeId: routeId,
+      startedAt: session.startedAt,
+      duration: session.moving,
+      distance: Distance.meters(session.distanceM),
+      performance: session.moving.format(),
+      track: track,
+    );
+    await ref.read(activityRepositoryProvider.notifier).saveActivity(activity);
+    if (_session == session) {
+      _emit(
+        status: RunStatus.completed,
+        gap: session.ghost != null ? _gapAt(session, session.distanceM) : null,
+        hasUnsavedData: false,
+      );
+    }
+  }
+
+  /// Reconstructs a deterministic GPS timeline from the recorded session:
+  /// points along the geometry every 25 m, timed to match the moving clock.
+  List<TrackPoint> _synthesizeTrack(_RecSession session) {
+    final track = <TrackPoint>[];
+    if (session.geometry.length < 2 || session.distanceM <= 0) {
+      return track;
+    }
+    const stepMeters = 25.0;
+    final durationMs = (session.moving.seconds * 1000).round();
+    for (var d = 0.0; d < session.distanceM; d += stepMeters) {
+      final position = pointAlongPolyline(session.geometry, d);
+      if (position == null) {
+        break;
+      }
+      final elapsedMs = (durationMs * (d / session.distanceM)).round();
+      track.add(TrackPoint(
+        position: position,
+        timestamp: session.startedAt.add(Duration(milliseconds: elapsedMs)),
+      ));
+    }
+    final finalPosition =
+        pointAlongPolyline(session.geometry, session.distanceM);
+    if (finalPosition != null) {
+      track.add(TrackPoint(
+        position: finalPosition,
+        timestamp: session.startedAt.add(Duration(milliseconds: durationMs)),
+      ));
+    }
+    return track;
+  }
+
+  /// Tries to match an unrecognized run against the catalog so the saved
+  /// activity carries a `routeId`. Returns `null` for a genuinely new route.
+  Future<String?> _recognizeRoute(List<TrackPoint> track) async {
+    if (track.length < 2) {
+      return null;
+    }
+    final engine = ref.read(engineServiceProvider);
+    for (final route in ref.read(routeRepositoryProvider)) {
+      final result = await engine.matchRoutes(
+        a: track,
+        b: _geometryTrack(route.geometry),
+      );
+      if (result.sameRoute) {
+        return route.id;
+      }
+    }
+    return null;
+  }
+
+  List<TrackPoint> _geometryTrack(List<GeoPoint> geometry) => [
+        for (var i = 0; i < geometry.length; i++)
+          TrackPoint(
+            position: geometry[i],
+            timestamp: DateTime.fromMillisecondsSinceEpoch(i * 1000,
+                isUtc: true),
+          ),
+      ];
 
   Future<void> _prepareGhost() async {
     final session = _requireSession();
@@ -308,8 +394,9 @@ if (route.personalBest case final pb?) {
 
 /// Internal mutable recording session.
 class _RecSession {
-  _RecSession(this.route);
+  _RecSession(this.route) : startedAt = DateTime.now().toUtc();
 
+  final DateTime startedAt;
   Route? route;
   List<GeoPoint> geometry = FakeEngineService.riverLoop;
   double loopLength = 0;

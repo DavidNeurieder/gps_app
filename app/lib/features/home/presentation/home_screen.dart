@@ -8,15 +8,15 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../engine/models.dart';
-import '../application/home_directory.dart';
+import '../../../persistence/persistence.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final routes = ref.watch(homeRoutesProvider);
-    final activities = ref.watch(recentActivitiesProvider);
+    final routes = ref.watch(routeRepositoryProvider);
+    final activities = ref.watch(activityRepositoryProvider);
     return Scaffold(
       body: SafeArea(
         child: ListView(

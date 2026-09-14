@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../engine/models.dart';
-import '../../home/application/home_directory.dart';
+import '../../../persistence/persistence.dart';
 import '../application/recording_controller.dart';
 import 'live_run_screen.dart';
 import 'pre_run_screen.dart';
@@ -38,7 +38,7 @@ class _RecordFlowScreenState extends ConsumerState<RecordFlowScreen> {
   void _ensure() {
     final controller = ref.read(recordingControllerProvider.notifier);
     if (ref.read(recordingControllerProvider) == null) {
-      controller.ensureSession(ref.read(homeRoutesProvider));
+      controller.ensureSession(ref.read(routeRepositoryProvider));
     }
   }
 

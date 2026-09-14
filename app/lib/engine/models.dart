@@ -76,6 +76,7 @@ class Activity {
     this.duration,
     this.distance,
     this.performance,
+    this.track,
   });
 
   final String id;
@@ -83,7 +84,12 @@ class Activity {
   final DateTime startedAt;
   final Elapsed? duration;
   final Distance? distance;
+
+  /// Provisional result caption (§43), e.g. `24:22 · 1st`.
   final String? performance;
+
+  /// Raw GPS fixes, persisted as a blob alongside the metadata (§27).
+  final List<TrackPoint>? track;
 }
 
 /// One attempt reduced to the route axis (GPS → distance ↔ elapsed time).

@@ -73,7 +73,13 @@ void main() {
     // Finish completes the run.
     await tester.tap(find.text('FINISH'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('RUN COMPLETE'), findsOneWidget);
     expect(find.byType(PerformanceGap), findsNothing);
+
+    // M10: the finished run lands in Home's recent history.
+    await tester.tap(tab('Home'));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.directions_run), findsNWidgets(3));
   });
 }

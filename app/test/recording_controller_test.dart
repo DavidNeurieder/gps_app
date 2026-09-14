@@ -5,6 +5,7 @@ import 'package:gps_app/core/units.dart';
 import 'package:gps_app/engine/fake_engine.dart';
 import 'package:gps_app/engine/models.dart';
 import 'package:gps_app/features/recording/application/recording_controller.dart';
+import 'package:gps_app/persistence/persistence.dart';
 
 const _route = Route(
   id: FakeEngineService.riverLoopId,
@@ -115,6 +116,37 @@ void main() {
       expect(done.status, RunStatus.completed);
       expect(done.hasUnsavedData, isFalse);
       expect(done.ghostGap, isNotNull);
+
+      // M10: the finished run was saved into the activity history.
+      final history = c.read(activityRepositoryProvider);
+      expect(history.length, 3); // 2 seeded demo activities + this run
+      final saved = history.first;
+      expect(saved.duration?.seconds, closeTo(30, 1));
+      expect(saved.track, isNotEmpty);
+      // The session knew the route, so the activity is tagged with it.
+      expect(saved.routeId, FakeEngineService.riverLoopId);
+    });
+  });
+
+  test('a full loop saved without a route is recognized and tagged', () {
+    fakeAsync((async) {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      keepAlive(c);
+      final notifier = c.read(recordingControllerProvider.notifier);
+      notifier.ensureSession([_route]);
+      async.flushMicrotasks();
+      async.elapse(const Duration(milliseconds: 1000));
+      notifier.continueWithoutRoute();
+      notifier.beginRun();
+      // ~4.9 km at ~3.37 m/s completes the ~4.76 km loop.
+      async.elapse(const Duration(seconds: 1500));
+      notifier.finishRun();
+      async.elapse(const Duration(milliseconds: 500));
+
+      final saved = c.read(activityRepositoryProvider).first;
+      expect(saved.distance?.meters, greaterThan(4700));
+      expect(saved.routeId, FakeEngineService.riverLoopId);
     });
   });
 
