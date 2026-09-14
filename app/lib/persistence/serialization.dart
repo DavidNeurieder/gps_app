@@ -114,3 +114,30 @@ List<Activity> parseActivityList(String json) => [
           in (jsonDecode(json) as List).cast<Map<String, Object?>>())
         _activityFrom(activity),
     ];
+
+/// Serializes an in-progress run snapshot (M13, §28) to a compact JSON string.
+String runSnapshotToJson(RunSnapshot snapshot) => const JsonEncoder()
+    .convert({
+      'status': snapshot.status.name,
+      'started_at': snapshot.startedAt.toUtc().toIso8601String(),
+      'moving_s': snapshot.movingSeconds,
+      'distance_m': snapshot.distanceMeters,
+      'loop_m': snapshot.loopMeters,
+      'route_id': ?snapshot.routeId,
+    });
+
+/// Parses a run snapshot previously written by [runSnapshotToJson].
+RunSnapshot parseRunSnapshot(String json) {
+  final map = (jsonDecode(json) as Map).cast<String, Object?>();
+  return RunSnapshot(
+    status: RunStatus.values.firstWhere(
+      (s) => s.name == map['status'],
+      orElse: () => RunStatus.running,
+    ),
+    startedAt: DateTime.parse(map['started_at']! as String).toUtc(),
+    movingSeconds: (map['moving_s']! as num).toDouble(),
+    distanceMeters: (map['distance_m']! as num).toDouble(),
+    loopMeters: (map['loop_m']! as num).toDouble(),
+    routeId: map['route_id'] as String?,
+  );
+}

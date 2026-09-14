@@ -201,6 +201,27 @@ enum RunStatus {
   error,
 }
 
+/// A recoverable snapshot of an in-progress run (M13, §28). Persisted while
+/// the app runs in the background so a killed process can be resumed.
+class RunSnapshot {
+  const RunSnapshot({
+    required this.status,
+    required this.startedAt,
+    required this.movingSeconds,
+    required this.distanceMeters,
+    required this.loopMeters,
+    this.routeId,
+  });
+
+  /// `running` or `paused` when the app left the foreground.
+  final RunStatus status;
+  final DateTime startedAt;
+  final double movingSeconds;
+  final double distanceMeters;
+  final double loopMeters;
+  final String? routeId;
+}
+
 /// Live recording state delivered to the UI at roughly 1–2 Hz (§7).
 ///
 /// The UI is a pure projection of this state (§9): every screen reads it and

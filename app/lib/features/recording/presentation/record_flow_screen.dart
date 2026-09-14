@@ -38,7 +38,14 @@ class _RecordFlowScreenState extends ConsumerState<RecordFlowScreen> {
   void _ensure() {
     final controller = ref.read(recordingControllerProvider.notifier);
     if (ref.read(recordingControllerProvider) == null) {
-      controller.ensureSession(ref.read(routeRepositoryProvider));
+      final snapshot = ref.read(runSnapshotProvider);
+      if (snapshot != null) {
+        // M13 §28: an interrupted run was left behind — resume it instead of
+        // starting a fresh session.
+        controller.resumeFromSnapshot(snapshot);
+      } else {
+        controller.ensureSession(ref.read(routeRepositoryProvider));
+      }
     }
   }
 

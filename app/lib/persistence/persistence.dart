@@ -47,6 +47,20 @@ class NoopPersistenceStore implements PersistenceStore {
   Future<void> write(String key, String value) async {}
 }
 
+/// In-memory store that keeps documents for the app's lifetime. Useful for
+/// widget tests that need a real (non-Noop) backend without the file system.
+class MemoryPersistenceStore implements PersistenceStore {
+  MemoryPersistenceStore();
+
+  final Map<String, String> _docs = {};
+
+  @override
+  String? read(String key) => _docs[key];
+
+  @override
+  Future<void> write(String key, String value) async => _docs[key] = value;
+}
+
 /// A flat JSON-file store rooted at a directory.
 class JsonFileStore implements PersistenceStore {
   JsonFileStore(this.directory);
@@ -85,6 +99,12 @@ final routeRepositoryProvider =
 final activityRepositoryProvider =
     NotifierProvider<ActivityRepository, List<Activity>>(
         ActivityRepository.new);
+
+/// The interrupted run that can be resumed (M13, §28). `null` when no run is
+/// in progress or the last one finished cleanly.
+final runSnapshotProvider =
+    NotifierProvider<RunSnapshotRepository, RunSnapshot?>(
+        RunSnapshotRepository.new);
 
 /// Routes can be stored, loaded, and (later, M12) grown by saving new runs.
 class RouteRepository extends Notifier<List<Route>> {
@@ -157,6 +177,50 @@ class ActivityRepository extends Notifier<List<Activity>> {
   }
 
   static const _activitiesKey = 'activities';
+}
+
+/// Loads and stores the interrupted-run snapshot. Survives process death so
+/// the next launch can offer to resume (§28).
+class RunSnapshotRepository extends Notifier<RunSnapshot?> {
+  @override
+  RunSnapshot? build() {
+    ref.watch(persistenceStoreProvider);
+    final raw = ref.read(persistenceStoreProvider).read(_key);
+    if (raw == null || raw.trim() == 'null') {
+      return null;
+    }
+    try {
+      return parseRunSnapshot(raw);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// Overwrites the snapshot (called while a run is active and on lifecycle
+  /// transitions), or null to clear it once the run is finished/dismissed.
+  Future<void> save(RunSnapshot? snapshot) async {
+    if (snapshot == null) {
+      state = null;
+      await _clear();
+      return;
+    }
+    state = snapshot;
+    final store = ref.read(persistenceStoreProvider);
+    if (store is NoopPersistenceStore) {
+      return;
+    }
+    await store.write(_key, runSnapshotToJson(snapshot));
+  }
+
+  Future<void> _clear() async {
+    final store = ref.read(persistenceStoreProvider);
+    if (store is NoopPersistenceStore) {
+      return;
+    }
+    await store.write(_key, 'null');
+  }
+
+  static const _key = 'run_snapshot';
 }
 
 /// Seeded route catalog shown until the user builds their own (M10 demo data).

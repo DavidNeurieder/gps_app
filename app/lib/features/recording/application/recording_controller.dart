@@ -13,10 +13,11 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/units.dart';
 import '../../../app/dependencies.dart';
+import '../../../core/units.dart';
 import '../../../engine/fake_engine.dart';
 import '../../../engine/models.dart';
 import '../../../persistence/persistence.dart';
@@ -35,6 +36,15 @@ class RecordingController extends Notifier<LiveRunState?> {
   Timer? _timer;
   _RecSession? _session;
   final math.Random _random = math.Random(7);
+
+  /// Wall-clock anchor for the last tick (M13): elapsed time is derived from
+  /// the real clock rather than assuming each timer tick is exactly 500 ms,
+  /// so throttled/suspended background timers never corrupt the pace.
+  DateTime _lastTick = clock.now();
+
+  /// Throttles background snapshot writes (at most every 5 seconds).
+  static const Duration _snapshotEvery = Duration(seconds: 5);
+  DateTime _throttleAnchor = clock.now();
 
   @override
   LiveRunState? build() {
@@ -56,7 +66,7 @@ class RecordingController extends Notifier<LiveRunState?> {
             orElse: () => preferredRoutes.first,
           )
         : null;
-    _session = _RecSession(preferred);
+    _session = _RecSession(preferred, 0);
     _beginAcquisition();
   }
 
@@ -75,6 +85,8 @@ class RecordingController extends Notifier<LiveRunState?> {
       session.loopLength =
           session.geometry.isEmpty ? 0 : polylineMeters(session.geometry);
     }
+    _lastTick = clock.now();
+    _throttleAnchor = clock.now();
     _emit(status: RunStatus.running);
   }
 
@@ -89,7 +101,32 @@ class RecordingController extends Notifier<LiveRunState?> {
     if (state?.status != RunStatus.paused) {
       return;
     }
+    _lastTick = clock.now();
+    _throttleAnchor = clock.now();
     _emit(status: RunStatus.running);
+  }
+
+  /// App lifecycle M13, §28: the run left the foreground. Sync the wall clock
+  /// so a suspended background timer doesn't inflate elapsed time, and write
+  /// a snapshot immediately in case the process is killed.
+  void appBackgrounded() {
+    _lastTick = clock.now();
+    if (_isActiveRun) {
+      _snapshot();
+    }
+  }
+
+  /// App lifecycle M13, §28: back in the foreground. Same clock sync; the
+  /// recording resumes where the wall clock left it.
+  void appForegrounded() {
+    _lastTick = clock.now();
+  }
+
+  /// True while a run is actually in progress (running or paused), so
+  /// lifecycle snapshots only capture real sessions.
+  bool get _isActiveRun {
+    final status = state?.status;
+    return status == RunStatus.running || status == RunStatus.paused;
   }
 
   /// FINISH: one final "finishing" tick then a completed summary.
@@ -107,6 +144,7 @@ class RecordingController extends Notifier<LiveRunState?> {
     _timer = null;
     _session = null;
     state = null;
+    ref.read(runSnapshotProvider.notifier).save(null);
   }
 
   Future<void> _beginAcquisition() async {
@@ -136,14 +174,16 @@ class RecordingController extends Notifier<LiveRunState?> {
 
   void _advance() {
     final session = _requireSession();
-    final tickSeconds = _tick.inMilliseconds / 1000.0;
+    final now = clock.now();
+    final deltaSeconds = now.difference(_lastTick).inMilliseconds / 1000.0;
+    _lastTick = now;
 
     // Slightly variable, deterministic pace.
     final speed =
         _baseSpeedMps * (0.97 + _random.nextDouble() * 0.06);
-    final step = speed * tickSeconds;
+    final step = speed * deltaSeconds;
     session.distanceM = _clampMeters(session.distanceM + step, session.loopLength);
-    session.moving = session.moving + Elapsed.seconds(tickSeconds);
+    session.moving = session.moving + Elapsed.seconds(deltaSeconds);
 
     final position = pointAlongPolyline(session.geometry, session.distanceM);
 
@@ -156,12 +196,70 @@ class RecordingController extends Notifier<LiveRunState?> {
           pointAlongPolyline(session.geometry, ghostDistance);
     }
 
-    _emit(
+_emit(
       status: RunStatus.running,
       position: position,
       gap: gap,
       ghostPosition: ghostPosition,
     );
+    _snapshotThrottled();
+  }
+
+  /// Persists a snapshot at most every ~5 s of wall time so a backgrounded or
+  /// killed process can resume close to where it left off (§28).
+  void _snapshotThrottled() {
+    final now = clock.now();
+    if (now.difference(_throttleAnchor) >= _snapshotEvery) {
+      _throttleAnchor = now;
+      _snapshot();
+    }
+  }
+
+  RunSnapshot? _snapshot() {
+    final session = _session;
+    final live = state;
+    if (session == null || live == null) {
+      return null;
+    }
+    final snapshot = RunSnapshot(
+      status: live.status,
+      startedAt: session.startedAt,
+      movingSeconds: session.moving.seconds,
+      distanceMeters: session.distanceM,
+      loopMeters: session.loopLength,
+      routeId: session.route?.id,
+    );
+    ref.read(runSnapshotProvider.notifier).save(snapshot);
+    return snapshot;
+  }
+
+  /// Resumes an interrupted session from its persisted snapshot (§28).
+  /// Mirrors [ensureSession]: recover geometry/ghost then re-enter
+  /// `running`/`paused` with a fresh timer.
+  Future<void> resumeFromSnapshot(RunSnapshot snapshot) async {
+    if (_session != null) {
+      return;
+    }
+    final routes = ref.read(routeRepositoryProvider);
+    final route = snapshot.routeId == null
+        ? null
+        : routes.where((r) => r.id == snapshot.routeId).firstOrNull;
+    _session = _RecSession(
+      route,
+      snapshot.distanceMeters,
+      startedAt: snapshot.startedAt,
+      movingSeconds: snapshot.movingSeconds,
+      loopLength: snapshot.loopMeters,
+    );
+    await _prepareGhost();
+    if (_session == null) {
+      return;
+    }
+    _lastTick = clock.now();
+    _throttleAnchor = clock.now();
+    _emit(status: snapshot.status);
+    _timer?.cancel();
+    _timer = Timer.periodic(_tick, (_) => _onTick());
   }
 
   /// Distance the PB ghost has covered by [liveSeconds] of live moving time.
@@ -252,6 +350,8 @@ class RecordingController extends Notifier<LiveRunState?> {
       track: track,
     );
     await ref.read(activityRepositoryProvider.notifier).saveActivity(activity);
+    // M13 §28: the run is safely stored — clear the interrupted-run snapshot.
+    await ref.read(runSnapshotProvider.notifier).save(null);
     if (_session == session) {
       _emit(
         status: RunStatus.completed,
@@ -394,7 +494,14 @@ if (route.personalBest case final pb?) {
 
 /// Internal mutable recording session.
 class _RecSession {
-  _RecSession(this.route) : startedAt = DateTime.now().toUtc();
+  _RecSession(
+    this.route,
+    this.distanceM, {
+    DateTime? startedAt,
+    double movingSeconds = 0,
+    this.loopLength = 0,
+  })  : startedAt = startedAt ?? DateTime.now().toUtc(),
+        moving = Elapsed.seconds(movingSeconds);
 
   final DateTime startedAt;
   Route? route;
@@ -402,5 +509,5 @@ class _RecSession {
   double loopLength = 0;
   Ghost? ghost;
   Elapsed moving = Elapsed.zero();
-  double distanceM = 0;
+  double distanceM;
 }
