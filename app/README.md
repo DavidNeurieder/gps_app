@@ -1,17 +1,42 @@
-# gps_app
+# app — Flutter client
 
-A new Flutter project.
+The Flutter client for `gps_app`. See the repository root
+[`README.md`](../README.md) for the full picture.
 
-## Getting Started
+## Run
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Tests & analysis
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter analyze
+flutter test
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+89 tests, run headlessly with `fake_async`, an in-memory store, and the
+deterministic fake engine — no device or GPS required.
+
+## Real engine
+
+By default the app uses the deterministic `FakeEngineService`. To talk to the
+Rust engine over FFI:
+
+```bash
+flutter run --dart-define=USE_RUST_ENGINE=true \
+            --dart-define=GPS_ENGINE_LIB=/path/to/libgps_engine.so
+```
+
+## Layout
+
+- `lib/app/` — root widget, router, shell tabs, dependency injection.
+- `lib/features/` — feature folders: `home`, `recording`, `result`, `routes`,
+  `activity` (each `presentation/` + `application/`).
+- `lib/core/` — theme and units.
+- `lib/engine/` — `EngineService` facade, fake + Rust FFI implementations.
+- `lib/persistence/` — stores and repositories.
+- `lib/widgets/` — shared components (`performance_gap`, `route_map`,
+  `route_silhouette`).
