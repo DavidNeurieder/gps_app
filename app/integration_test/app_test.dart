@@ -1,0 +1,135 @@
+/// On-device end-to-end tests (§45, M14+).
+///
+/// These run against the REAL app on an emulator/device — real wall clock,
+/// real timers, real rendering — and therefore use generous timeouts instead
+/// of `fakeAsync`. Run with:
+///
+/// ```bash
+/// flutter test integration_test -d <device>
+/// ```
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:gps_app/app/app.dart';
+import 'package:integration_test/integration_test.dart';
+
+/// The distance value currently shown on the live screen, in meters.
+int _displayedMeters(WidgetTester tester) {
+  final text = tester
+      .widget<Text>(find.byKey(const ValueKey('live-distance')))
+      .data!;
+  final match = RegExp(r'\d+').firstMatch(text);
+  return match == null ? 0 : int.parse(match.group(0)!);
+}
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  /// Pumps while wall-clock time elapses (the live binding can't pump for a
+  /// duration), so real periodic timers fire and re-render.
+  Future<void> pumpFor(WidgetTester tester, Duration duration) async {
+    final end = DateTime.now().add(duration);
+    while (DateTime.now().isBefore(end)) {
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
+  /// Polls until [text] is onscreen. On-device GPS acquisition and async
+  /// saves happen on real timers, so a fixed await would be flaky.
+  Future<void> waitForText(WidgetTester tester, String text,
+      {Duration timeout = const Duration(seconds: 10)}) async {
+    final end = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(end)) {
+      await tester.pump();
+      if (tester.any(find.text(text))) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    fail('Timed out waiting for "$text"');
+  }
+
+  testWidgets('records a run end to end', (tester) async {
+    await tester.pumpWidget(const GpsApp());
+    await tester.pumpAndSettle();
+
+    // Home is the default tab.
+    expect(find.text('Run against yesterday'), findsOneWidget);
+    expect(find.text('River Loop'), findsWidgets);
+    expect(find.text('Park 5K'), findsWidgets);
+
+    // Home → Record via the primary action.
+    await tester.tap(find.text('Start a run'));
+    await tester.pumpAndSettle();
+    await waitForText(tester, 'READY TO RUN');
+    expect(find.text('GPS READY'), findsOneWidget);
+    expect(find.textContaining('Personal Best'), findsOneWidget);
+
+    // START → live screen with the hero metrics.
+    await tester.tap(find.text('START'));
+    await tester.pumpAndSettle();
+    expect(find.text('PACE'), findsOneWidget);
+    expect(find.text('TIME'), findsOneWidget);
+    expect(find.text('FINISH'), findsOneWidget);
+
+    // GPS advances the distance on real ticks.
+    final before = _displayedMeters(tester);
+    await pumpFor(tester, const Duration(seconds: 2));
+    final after = _displayedMeters(tester);
+    expect(after, greaterThan(before));
+
+    // Pause shows the PAUSED overlay and stops the clock.
+    await tester.tap(find.text('PAUSE'));
+    await tester.pumpAndSettle();
+    expect(find.text('PAUSED'), findsOneWidget);
+
+    // Resume and finish.
+    await tester.tap(find.text('RESUME'));
+    await tester.pumpAndSettle();
+    await pumpFor(tester, const Duration(milliseconds: 800));
+    await tester.tap(find.text('FINISH'));
+    await waitForText(tester, 'VIEW RESULT');
+
+    // M11: a short demo run may land on either completion header.
+    final header = tester.any(find.text('RUN COMPLETE')) ||
+        tester.any(find.text('NEW PERSONAL BEST'));
+    expect(header, isTrue, reason: 'expected a completion header');
+
+    // Result screen: performance bar, ranking, and the save persisted the run.
+    await tester.tap(find.text('VIEW RESULT'));
+    await tester.pumpAndSettle();
+    expect(find.text('PERFORMANCE'), findsOneWidget);
+    expect(find.textContaining('fastest run'), findsOneWidget);
+
+    // DONE → Home now shows the finished run (2 seeds + 1 new = 3 tiles).
+    await tester.tap(find.text('DONE'));
+    await tester.pumpAndSettle();
+    expect(find.text('Run against yesterday'), findsOneWidget);
+    expect(find.byIcon(Icons.directions_run), findsNWidgets(3));
+  });
+
+  testWidgets('browses the route library', (tester) async {
+    await tester.pumpWidget(const GpsApp());
+    await tester.pumpAndSettle();
+
+    // Routes tab lists the seeded catalog.
+    await tester.tap(find.text('Routes'));
+    await tester.pumpAndSettle();
+    expect(find.text('River Loop'), findsWidgets);
+    expect(find.text('Park 5K'), findsWidgets);
+    expect(find.text('Hügelrunde'), findsWidgets);
+
+    // A course card opens its detail page.
+    await tester.tap(find.text('River Loop'));
+    await tester.pumpAndSettle();
+    expect(find.text('Personal Best'), findsOneWidget);
+    expect(find.text('Attempts'), findsOneWidget);
+
+    // Back returns to the library.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Park 5K'), findsWidgets);
+  });
+}

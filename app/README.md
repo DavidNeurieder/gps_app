@@ -17,8 +17,19 @@ flutter analyze
 flutter test
 ```
 
-89 tests, run headlessly with `fake_async`, an in-memory store, and the
+89 headless tests run with `fake_async`, an in-memory store, and the
 deterministic fake engine — no device or GPS required.
+
+## On-device integration tests
+
+`integration_test/app_test.dart` drives the real app end to end on an
+emulator/device (real clock, real timers): record a run (Home → READY → START
+→ pause/resume → FINISH → result → DONE → history) and browse the route
+library.
+
+```bash
+flutter test integration_test -d <device>
+```
 
 ## Real engine
 

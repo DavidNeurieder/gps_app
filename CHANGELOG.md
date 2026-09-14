@@ -8,6 +8,10 @@ documented here, grouped by the implementation milestones in
 
 ## [Unreleased]
 
+- **Integration tests** — on-device E2E suite (`integration_test/app_test.dart`):
+  full run journey (Home → START → pause/resume → finish → result → history)
+  and route-library browsing, running against the real app on an
+  emulator/device with the deterministic fake engine.
 - Cross-platform device testing against real GPS.
 
 ---
