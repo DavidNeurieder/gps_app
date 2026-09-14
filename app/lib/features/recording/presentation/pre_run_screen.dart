@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart' hide Route;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -59,7 +60,13 @@ class PreRunScreen extends ConsumerWidget {
                           const _NewRouteHint(),
                         const Spacer(),
                         FilledButton(
-                          onPressed: ready ? controller.beginRun : null,
+                          onPressed: ready
+                              ? () {
+                                  // M14: a tactile "go" on START.
+                                  HapticFeedback.mediumImpact();
+                                  controller.beginRun();
+                                }
+                              : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.you,
                             foregroundColor: AppColors.background,
@@ -68,8 +75,8 @@ class PreRunScreen extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(20),
                             ),
                           ),
-                          child: const Text('START',
-                              style: TextStyle(fontSize: 18)),
+                          child: Text('START',
+                              style: textTheme.titleMedium),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         if (route != null)
@@ -101,7 +108,9 @@ class _GpsChip extends StatelessWidget {
     return Center(
       child: Chip(
         avatar: Icon(
-          ready ? Icons.gps_fixed : Icons.gps_not_fixed,
+          // M14 loading cue: an hourglass reads as "in progress" without a
+          // perpetual spinner (which would keep the test clock animating).
+          ready ? Icons.gps_fixed : Icons.hourglass_top,
           size: 18,
           color: color,
         ),

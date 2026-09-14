@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter/material.dart' hide Route;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -49,6 +50,10 @@ class RoutesScreen extends ConsumerWidget {
                 route: route,
                 attempts: _attemptsFor(route, activities),
               ),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                context.push('/route/${route.id}');
+              },
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
@@ -62,10 +67,15 @@ class RoutesScreen extends ConsumerWidget {
 }
 
 class _RouteCourseCard extends StatelessWidget {
-  const _RouteCourseCard({required this.route, required this.stats});
+  const _RouteCourseCard({
+    required this.route,
+    required this.stats,
+    required this.onTap,
+  });
 
   final Route route;
   final RouteStats stats;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +83,7 @@ class _RouteCourseCard extends StatelessWidget {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () => context.push('/route/${route.id}'),
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(

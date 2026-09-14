@@ -29,8 +29,9 @@ abstract final class AppColors {
   /// Secondary text.
   static const Color textSecondary = Color(0xFF9AA3B2);
 
-  /// Tertiary / disabled text.
-  static const Color textMuted = Color(0xFF5C6572);
+  /// Tertiary / disabled text. Raised for WCAG AA contrast on both surfaces
+  /// (M14): 5.0:1 on `background`, 4.6:1 on `surface`.
+  static const Color textMuted = Color(0xFF7A8493);
 
   /// YOU — the live run (white primary, like the plan's "Primary white").
   static const Color you = Color(0xFFF2F4F8);

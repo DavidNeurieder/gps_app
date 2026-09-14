@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -47,18 +48,24 @@ class LiveRunScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (paused) ...[
-                Center(
-                  child: Text(
-                    'PAUSED',
-                    style: textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.gpsWarning,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                child: paused
+                    ? Center(
+                        key: const ValueKey('paused'),
+                        child: Text(
+                          'PAUSED',
+                          style: textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.gpsWarning,
+                          ),
+                        ),
+                      )
+                    : const SizedBox(key: ValueKey('resumed')),
+              ),
+              const SizedBox(height: AppSpacing.md),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -122,8 +129,11 @@ class LiveRunScreen extends ConsumerWidget {
                     child: _ActionButton(
                       label: paused ? 'RESUME' : 'PAUSE',
                       icon: paused ? Icons.play_arrow : Icons.pause,
-                      onPressed:
-                          paused ? controller.resume : controller.pause,
+                      onPressed: () {
+                        // M14 haptics: light tick for pause/resume.
+                        HapticFeedback.selectionClick();
+                        paused ? controller.resume() : controller.pause();
+                      },
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -131,7 +141,11 @@ class LiveRunScreen extends ConsumerWidget {
                     child: _ActionButton(
                       label: 'FINISH',
                       icon: Icons.stop,
-                      onPressed: controller.finishRun,
+                      onPressed: () {
+                        // M14 haptics: firm confirm when the run ends.
+                        HapticFeedback.heavyImpact();
+                        controller.finishRun();
+                      },
                       foreground: AppColors.background,
                       background: AppColors.you,
                     ),
@@ -172,7 +186,10 @@ class _GpsPill extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             good ? 'GPS' : 'GPS ${quality.toUpperCase()}',
-            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ],
       ),

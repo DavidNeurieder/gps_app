@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart' hide Route;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,26 +30,41 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md),
             const _Greeting(),
             const SizedBox(height: AppSpacing.lg),
-            _StartRunButton(onPressed: () => context.go('/record')),
+            _StartRunButton(onPressed: () {
+      HapticFeedback.mediumImpact();
+      context.go('/record');
+    }),
             const SizedBox(height: AppSpacing.xl),
-            if (activities.isNotEmpty) ...[
-              const _SectionHeader(title: 'Recent activities'),
-              const SizedBox(height: AppSpacing.sm),
+            if (activities.isEmpty)
+              const _EmptyHint(
+                icon: Icons.directions_run,
+                message: 'No runs yet. Your finished runs land here.',
+              )
+            else ...[
               for (final activity in activities) ...[
                 _ActivityTile(activity: activity),
                 const SizedBox(height: AppSpacing.sm),
               ],
-              const SizedBox(height: AppSpacing.lg),
             ],
+            const SizedBox(height: AppSpacing.lg),
             const _SectionHeader(title: 'Routes'),
             const SizedBox(height: AppSpacing.sm),
-            for (final route in routes) ...[
-              _RouteCard(
-                route: route,
-                onTap: () => context.push('/route/${route.id}'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
+            if (routes.isEmpty)
+              const _EmptyHint(
+                icon: Icons.route,
+                message: 'No routes yet. Finish a run to record one.',
+              )
+            else
+              for (final route in routes) ...[
+                _RouteCard(
+                  route: route,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/route/${route.id}');
+                  },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
           ],
         ),
       ),
@@ -89,7 +105,8 @@ class _StartRunButton extends StatelessWidget {
       child: FilledButton.icon(
         onPressed: onPressed,
         icon: const Icon(Icons.play_arrow_rounded, size: 28),
-        label: const Text('Start a run', style: TextStyle(fontSize: 18)),
+        label: Text('Start a run',
+            style: Theme.of(context).textTheme.titleMedium),
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.you,
           foregroundColor: AppColors.background,
@@ -115,6 +132,36 @@ class _SectionHeader extends StatelessWidget {
           .textTheme
           .titleMedium
           ?.copyWith(color: AppColors.textSecondary),
+    );
+  }
+}
+
+/// M14: a calm inline message where a section has nothing to show yet.
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(icon, size: 28, color: AppColors.textSecondary),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              message,
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -187,7 +234,10 @@ class _ActivityTile extends StatelessWidget {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () => context.push('/activity/${activity.id}'),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push('/activity/${activity.id}');
+        },
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(

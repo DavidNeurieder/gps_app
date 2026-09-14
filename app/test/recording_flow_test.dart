@@ -78,7 +78,9 @@ void main() {
     // Finish completes the run.
     await tester.tap(find.text('FINISH'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 10));
+    // Let the phase crossfade (M14 AnimatedSwitcher) finish so the live
+    // screen and its gap are fully gone.
+    await tester.pump(const Duration(milliseconds: 300));
     expect(
       find.byWidgetPredicate((w) =>
           w is Text &&

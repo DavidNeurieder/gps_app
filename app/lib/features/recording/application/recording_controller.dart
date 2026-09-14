@@ -148,13 +148,28 @@ class RecordingController extends Notifier<LiveRunState?> {
   }
 
   Future<void> _beginAcquisition() async {
-    await _prepareGhost();
+    try {
+      await _prepareGhost();
+    } catch (_) {
+      // M14: surface engine/preparation failures instead of hanging forever.
+      if (_session != null) {
+        _emit(status: RunStatus.error);
+      }
+      return;
+    }
     if (_session == null) {
       return; // dismissed while preparing
     }
     _emit(status: RunStatus.preparing);
     _timer?.cancel();
     _timer = Timer.periodic(_tick, (_) => _onTick());
+  }
+
+  /// M14: retry after an [RunStatus.error] — re-runs the acquisition pipeline.
+  void retry() {
+    if (_session != null) {
+      _beginAcquisition();
+    }
   }
 
   void _onTick() {
@@ -251,7 +266,12 @@ _emit(
       movingSeconds: snapshot.movingSeconds,
       loopLength: snapshot.loopMeters,
     );
-    await _prepareGhost();
+    try {
+      await _prepareGhost();
+    } catch (_) {
+      _emit(status: RunStatus.error);
+      return;
+    }
     if (_session == null) {
       return;
     }

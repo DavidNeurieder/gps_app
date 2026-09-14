@@ -76,16 +76,18 @@ class _RouteMapState extends State<RouteMap> {
       final shift = follow ? Offset.zero : _pan;
 
       if (widget.staticView) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: CustomPaint(
-            painter: _MapPainter(
-              world: world,
-              shift: Offset.zero,
-              follow: false,
-              followAt: widget.you,
-              geometry: widget.geometry,
-              youProgress: widget.youProgress,
+        return RepaintBoundary(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: CustomPaint(
+              painter: _MapPainter(
+                world: world,
+                shift: Offset.zero,
+                follow: false,
+                followAt: widget.you,
+                geometry: widget.geometry,
+                youProgress: widget.youProgress,
+              ),
             ),
           ),
         );
@@ -98,16 +100,20 @@ class _RouteMapState extends State<RouteMap> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: CustomPaint(
-                painter: _MapPainter(
-                  world: world,
-                  shift: shift,
-                  follow: _follow,
-                  followAt: widget.you,
-                  geometry: widget.geometry,
-                  youProgress: widget.youProgress,
+            // M14: isolate the map layer so live-tick repaints don't bleed
+            // into siblings (and don't repaint on unrelated rebuilds).
+            RepaintBoundary(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CustomPaint(
+                  painter: _MapPainter(
+                    world: world,
+                    shift: shift,
+                    follow: _follow,
+                    followAt: widget.you,
+                    geometry: widget.geometry,
+                    youProgress: widget.youProgress,
+                  ),
                 ),
               ),
             ),
@@ -118,11 +124,10 @@ class _RouteMapState extends State<RouteMap> {
                 child: IgnorePointer(
                   child: Text(
                     name,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                 ),
               ),
@@ -143,7 +148,10 @@ class _RouteMapState extends State<RouteMap> {
               follow: _follow,
               followAt: widget.you,
               position: widget.ghost,
-              child: const _GhostDot(),
+              child: Semantics(
+                label: 'PB ghost position',
+                child: ExcludeSemantics(child: _GhostDot()),
+              ),
             ),
             _AnimatedMarker(
               key: const ValueKey('you-marker'),
@@ -152,7 +160,10 @@ class _RouteMapState extends State<RouteMap> {
               follow: _follow,
               followAt: widget.you,
               position: widget.you,
-              child: const _YouDot(),
+              child: Semantics(
+                label: 'Your position',
+                child: ExcludeSemantics(child: _YouDot()),
+              ),
             ),
           ],
         ),

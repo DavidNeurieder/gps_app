@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,6 +14,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/units.dart';
 import '../../../engine/models.dart';
 import '../application/recording_controller.dart';
+
+final _kScaleIn = Tween<double>(begin: 0.9, end: 1.0);
 
 class RunCompleteScreen extends ConsumerWidget {
   const RunCompleteScreen({super.key, required this.state});
@@ -36,13 +39,21 @@ class RunCompleteScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              Text(
-                isNewPb ? 'NEW PERSONAL BEST' : 'RUN COMPLETE',
-                textAlign: TextAlign.center,
-                style: textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: isNewPb ? AppColors.ahead : null,
+              // M14: the headline settles into place with a springy scale-in.
+              TweenAnimationBuilder<double>(
+                tween: _kScaleIn,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutBack,
+                child: Text(
+                  isNewPb ? 'NEW PERSONAL BEST' : 'RUN COMPLETE',
+                  textAlign: TextAlign.center,
+                  style: textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isNewPb ? AppColors.ahead : null,
+                  ),
                 ),
+                builder: (context, scale, child) =>
+                    Transform.scale(scale: scale, child: child),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
@@ -74,7 +85,10 @@ class RunCompleteScreen extends ConsumerWidget {
               _GapLine(gap: gap),
               const Spacer(),
               FilledButton(
-                onPressed: () => context.push('/record/result'),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  context.push('/record/result');
+                },
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.you,
                   foregroundColor: AppColors.background,
@@ -88,6 +102,7 @@ class RunCompleteScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               TextButton(
                 onPressed: () {
+                  HapticFeedback.lightImpact();
                   controller.dismissRun();
                   context.go('/');
                 },
