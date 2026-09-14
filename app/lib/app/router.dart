@@ -4,8 +4,10 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/activity/presentation/activity_detail_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/recording/presentation/record_flow_screen.dart';
+import '../features/result/presentation/result_screen.dart';
 import '../features/routes/presentation/routes_screen.dart';
 import 'app_shell.dart';
 
@@ -39,6 +41,17 @@ GoRouter buildRouter() {
           ]),
         ],
       ),
+      // Full-screen overlays pushed above the shell (M11).
+      GoRoute(
+        path: '/record/result',
+        builder: (context, state) => const ResultScreen(),
+      ),
+      GoRoute(
+        path: '/activity/:id',
+        builder: (context, state) => ActivityDetailScreen(
+          activityId: state.pathParameters['id']!,
+        ),
+      ),
     ],
     errorBuilder: (context, state) => const _NotFound(),
   );
@@ -50,7 +63,10 @@ class _NotFound extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(child: Text('Nothing here', style: Theme.of(context).textTheme.titleMedium)),
+      body: Center(
+        child: Text('Nothing here',
+            style: Theme.of(context).textTheme.titleMedium),
+      ),
     );
   }
 }

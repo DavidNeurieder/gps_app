@@ -182,38 +182,42 @@ class _ActivityTile extends StatelessWidget {
     final started = activity.startedAt.toLocal();
     final date = '${started.day}/${started.month}';
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          children: [
-            Icon(Icons.directions_run, color: AppColors.ghost, size: 28),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    activity.duration?.format() ?? '—',
-                    style: textTheme.titleMedium,
-                  ),
-                  Text(
-                    '${activity.distance?.format() ?? '—'} '
-                    '· started $date',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push('/activity/${activity.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Icon(Icons.directions_run, color: AppColors.ghost, size: 28),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.duration?.format() ?? '—',
+                      style: textTheme.titleMedium,
                     ),
-                  ),
-                ],
-              ),
-            ),
-            if (activity.performance case final performance?)
-              Text(
-                performance,
-                style: textTheme.labelMedium?.copyWith(
-                  color: AppColors.textSecondary,
+                    Text(
+                      '${activity.distance?.format() ?? '—'} '
+                      '· started $date',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-          ],
+              if (activity.performance case final performance?)
+                Text(
+                  performance,
+                  style: textTheme.labelMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

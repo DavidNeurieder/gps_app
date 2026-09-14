@@ -1,7 +1,7 @@
-/// Finish experience (§19).
+/// Finish experience (§19, M11).
 ///
-/// Not a dashboard yet — just RUN COMPLETE, the result at a glance, and the
-/// choice to move on. Detailed results arrive with M11.
+/// Brief summary: RUN COMPLETE, distance, clock, PB gap, and VIEW RESULT.
+/// When a PB happens the heading becomes NEW PERSONAL BEST (§21).
 library;
 
 import 'package:flutter/material.dart';
@@ -25,6 +25,8 @@ class RunCompleteScreen extends ConsumerWidget {
     final controller = ref.read(recordingControllerProvider.notifier);
     final routeName = state.route?.name ?? 'New route';
     final gap = state.ghostGap;
+    final isNewPb =
+        gap != null && gap.ahead && gap.timeDifference.seconds < 0;
 
     return Scaffold(
       body: SafeArea(
@@ -35,10 +37,11 @@ class RunCompleteScreen extends ConsumerWidget {
             children: [
               const Spacer(),
               Text(
-                'RUN COMPLETE',
+                isNewPb ? 'NEW PERSONAL BEST' : 'RUN COMPLETE',
                 textAlign: TextAlign.center,
                 style: textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: isNewPb ? AppColors.ahead : null,
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -71,10 +74,7 @@ class RunCompleteScreen extends ConsumerWidget {
               _GapLine(gap: gap),
               const Spacer(),
               FilledButton(
-                onPressed: () {
-                  controller.dismissRun();
-                  context.go('/');
-                },
+                onPressed: () => context.push('/record/result'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.you,
                   foregroundColor: AppColors.background,
@@ -83,6 +83,14 @@ class RunCompleteScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
+                child: const Text('VIEW RESULT'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextButton(
+                onPressed: () {
+                  controller.dismissRun();
+                  context.go('/');
+                },
                 child: const Text('DONE'),
               ),
             ],

@@ -70,16 +70,38 @@ void main() {
     await tester.pump();
     expect(find.text('PAUSE'), findsOneWidget);
 
+    // Run long enough (>1 km) for per-km splits to appear later.
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(seconds: 10));
+    }
+
     // Finish completes the run.
     await tester.tap(find.text('FINISH'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
-    expect(find.text('RUN COMPLETE'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) =>
+          w is Text &&
+          (w.data == 'RUN COMPLETE' || w.data == 'NEW PERSONAL BEST')),
+      findsOneWidget,
+    );
     expect(find.byType(PerformanceGap), findsNothing);
 
+    // M11: VIEW RESULT opens the detailed result with splits visible.
+    await tester.tap(find.text('VIEW RESULT'));
+    await tester.pumpAndSettle();
+    await waitReady(tester); // no GPS frame needed at the result screen
+    expect(find.text('Splits'), findsOneWidget);
+
     // M10: the finished run lands in Home's recent history.
-    await tester.tap(tab('Home'));
+    await tester.tap(find.text('DONE'));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.directions_run), findsNWidgets(3));
+
+    // M11: tapping the most recent activity opens its detail screen.
+    await tester.tap(find.byIcon(Icons.directions_run).first);
+    await tester.pumpAndSettle();
+    expect(find.text('River Loop'), findsWidgets);
+    expect(find.textContaining('Run on'), findsOneWidget);
   });
 }
