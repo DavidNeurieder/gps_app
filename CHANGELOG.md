@@ -8,6 +8,25 @@ documented here, grouped by the implementation milestones in
 
 ## [Unreleased]
 
+- **Test expansion** (per `ideas/test_plan.txt`) — Flutter suite grows from 89
+  to 136 tests across five new files, closing behavioural gaps:
+  - `test/state_machine_test.dart` — invalid transitions are strict no-ops
+    (pause/finish before running, resume while running, double-pause,
+    double-finish, second `beginRun`, `ensureSession`, resume-after-completion),
+    GPS quality reduced→good through acquisition, distance/pace invariants at
+    the loop seam.
+  - `test/pause_resume_test.dart` — paused time never counts toward moving time
+    or distance (multi-pause, immediate-pause, 1-second run, resume/immediate
+    finish).
+  - `test/persistence_recovery_test.dart` — snapshot cleared on finish,
+    stale/unknown `routeId` resumes safely on river-loop geometry, headless
+    runs clamp at `polylineMeters(riverLoop)`, malformed/missing/null snapshot
+    documents degrade to `null`, corrupt history falls back to seeds.
+  - `test/geometry_invariants_test.dart` — haversine symmetry/non-negativity/
+    known reference (1° ≈ 111.19 km)/antimeridian/poles ≈ π·R; polyline
+    monotonicity; `pointAlongPolyline` boundaries.
+  - `test/splits_boundary_test.dart` — 0.999/1.000/1.001 km thresholds, margin-beating the PB flips every delta
+    negative, per-split pacing honesty.
 - **Integration tests** — on-device E2E suite (`integration_test/app_test.dart`):
   full run journey (Home → START → pause/resume → finish → result → history)
   and route-library browsing, running against the real app on an
