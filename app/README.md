@@ -17,13 +17,14 @@ flutter analyze
 flutter test
 ```
 
-136 headless tests run with `fake_async`, an in-memory store, and the
+152 headless tests run with `fake_async`, an in-memory store, and the
 deterministic fake engine — no device or GPS required. Coverage spans the run
 state machine (`test/state_machine_test.dart`), pause/resume timing
 (`test/pause_resume_test.dart`), persistence & recovery
 (`test/persistence_recovery_test.dart`), geometry invariants
-(`test/geometry_invariants_test.dart`), and PB/split boundaries
-(`test/splits_boundary_test.dart`).
+(`test/geometry_invariants_test.dart`), PB/split boundaries
+(`test/splits_boundary_test.dart`), per-phase record UI (`test/ui_state_test.dart`),
+and failure injection (`test/failure_injection_test.dart`).
 
 ## On-device integration tests
 

@@ -358,25 +358,35 @@ _emit(
   /// Saves the finished run into the activity repository (M10, §27).
   Future<void> _persistCompletedRun() async {
     final session = _requireSession();
-    final track = _synthesizeTrack(session);
-    final routeId = session.route?.id ?? await _recognizeRoute(track);
-    final activity = Activity(
-      id: 'act-${session.startedAt.millisecondsSinceEpoch}',
-      routeId: routeId,
-      startedAt: session.startedAt,
-      duration: session.moving,
-      distance: Distance.meters(session.distanceM),
-      performance: session.moving.format(),
-      track: track,
-    );
-    await ref.read(activityRepositoryProvider.notifier).saveActivity(activity);
-    // M13 §28: the run is safely stored — clear the interrupted-run snapshot.
-    await ref.read(runSnapshotProvider.notifier).save(null);
+    final gap = session.ghost != null
+        ? _gapAt(session, session.distanceM)
+        : null;
+    var saved = true;
+    try {
+      final track = _synthesizeTrack(session);
+      final routeId = session.route?.id ?? await _recognizeRoute(track);
+      final activity = Activity(
+        id: 'act-${session.startedAt.millisecondsSinceEpoch}',
+        routeId: routeId,
+        startedAt: session.startedAt,
+        duration: session.moving,
+        distance: Distance.meters(session.distanceM),
+        performance: session.moving.format(),
+        track: track,
+      );
+      await ref.read(activityRepositoryProvider.notifier).saveActivity(activity);
+      // M13 §28: the run is safely stored — clear the interrupted-run snapshot.
+      await ref.read(runSnapshotProvider.notifier).save(null);
+    } catch (_) {
+      // Best-effort persistence: degraded storage or a failed route match must
+      // keep the completed summary visible, not crash the app (Phase 13).
+      saved = false;
+    }
     if (_session == session) {
       _emit(
         status: RunStatus.completed,
-        gap: session.ghost != null ? _gapAt(session, session.distanceM) : null,
-        hasUnsavedData: false,
+        gap: gap,
+        hasUnsavedData: !saved,
       );
     }
   }

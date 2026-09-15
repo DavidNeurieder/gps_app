@@ -9,7 +9,7 @@ documented here, grouped by the implementation milestones in
 ## [Unreleased]
 
 - **Test expansion** (per `ideas/test_plan.txt`) — Flutter suite grows from 89
-  to 136 tests across five new files, closing behavioural gaps:
+  to 152 tests, closing behavioural gaps:
   - `test/state_machine_test.dart` — invalid transitions are strict no-ops
     (pause/finish before running, resume while running, double-pause,
     double-finish, second `beginRun`, `ensureSession`, resume-after-completion),
@@ -25,8 +25,25 @@ documented here, grouped by the implementation milestones in
   - `test/geometry_invariants_test.dart` — haversine symmetry/non-negativity/
     known reference (1° ≈ 111.19 km)/antimeridian/poles ≈ π·R; polyline
     monotonicity; `pointAlongPolyline` boundaries.
-  - `test/splits_boundary_test.dart` — 0.999/1.000/1.001 km thresholds, margin-beating the PB flips every delta
-    negative, per-split pacing honesty.
+- `test/splits_boundary_test.dart` — 0.999/1.000/1.001 km thresholds,
+    margin-beating the PB flips every delta negative, per-split pacing honesty.
+- **UI state coverage** (`test/ui_state_test.dart`, plan Phase 11) — what the
+  record flow *shows* at every phase: START disabled + hourglass while
+  acquiring, controls flipping running→PAUSE / paused→RESUME, completed showing
+  neither pause nor finish, and rapid pause/resume switching converging on a
+  coherent state.
+- **Failure injection** (`test/failure_injection_test.dart`, plan Phase 13) —
+  a dead storage backend and failing route matching must degrade safely. Fixes
+  landed in `persistence/` and the controller:
+  - storage reads/writes are best-effort (`_readBestEffort` /
+    `_writeBestEffort`): a failed disk write no longer surfaces as an unhandled
+    async exception from snapshots, finishes, or dismissals; the in-memory
+    repositories stay authoritative.
+  - repository `build()`s also catch `TypeError` (valid JSON, wrong shape), so
+    malformed-but-parseable documents fall back to seeds instead of exploding.
+  - `_persistCompletedRun` catches the whole persist pipeline (including a
+    failing engine `matchRoutes` on headless finishes) and re-emits the
+    completed summary with `hasUnsavedData` set rather than crashing.
 - **Integration tests** — on-device E2E suite (`integration_test/app_test.dart`):
   full run journey (Home → START → pause/resume → finish → result → history)
   and route-library browsing, running against the real app on an

@@ -61,6 +61,30 @@ class MemoryPersistenceStore implements PersistenceStore {
   Future<void> write(String key, String value) async => _docs[key] = value;
 }
 
+/// Best-effort storage reads: a device with flaky storage degrades to the
+/// seeded defaults instead of crashing the UI (failure injection, Phase 13).
+String? _readBestEffort(PersistenceStore store, String key) {
+  try {
+    return store.read(key);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Best-effort storage writes: the in-memory repositories stay authoritative,
+/// so a failed disk write never produces an unhandled async exception.
+Future<void> _writeBestEffort(
+  PersistenceStore store,
+  String key,
+  String value,
+) async {
+  try {
+    await store.write(key, value);
+  } catch (_) {
+    // Degraded storage: nothing to recover — the in-memory state persists.
+  }
+}
+
 /// A flat JSON-file store rooted at a directory.
 class JsonFileStore implements PersistenceStore {
   JsonFileStore(this.directory);
@@ -111,12 +135,14 @@ class RouteRepository extends Notifier<List<Route>> {
   @override
   List<Route> build() {
     ref.watch(persistenceStoreProvider);
-    final raw = ref.read(persistenceStoreProvider).read(_routesKey);
+    final raw = _readBestEffort(ref.read(persistenceStoreProvider), _routesKey);
     if (raw != null) {
       try {
         return parseRouteList(raw);
       } on FormatException {
         // Corrupt store: fall back to the seeded catalog.
+      } on TypeError {
+        // Structurally valid JSON with the wrong shape.
       }
     }
     return _seedRoutes;
@@ -140,7 +166,7 @@ class RouteRepository extends Notifier<List<Route>> {
     if (store is NoopPersistenceStore) {
       return;
     }
-    await store.write(_routesKey, routeListToJson(state));
+    await _writeBestEffort(store, _routesKey, routeListToJson(state));
   }
 
   static const _routesKey = 'routes';
@@ -151,12 +177,15 @@ class ActivityRepository extends Notifier<List<Activity>> {
   @override
   List<Activity> build() {
     ref.watch(persistenceStoreProvider);
-    final raw = ref.read(persistenceStoreProvider).read(_activitiesKey);
+    final raw =
+        _readBestEffort(ref.read(persistenceStoreProvider), _activitiesKey);
     if (raw != null) {
       try {
         return parseActivityList(raw);
       } on FormatException {
         // Corrupt store: fall back to the seeded history.
+      } on TypeError {
+        // Structurally valid JSON with the wrong shape.
       }
     }
     return _seedActivities;
@@ -173,7 +202,7 @@ class ActivityRepository extends Notifier<List<Activity>> {
     if (store is NoopPersistenceStore) {
       return;
     }
-    await store.write(_activitiesKey, activityListToJson(state));
+    await _writeBestEffort(store, _activitiesKey, activityListToJson(state));
   }
 
   static const _activitiesKey = 'activities';
@@ -185,13 +214,15 @@ class RunSnapshotRepository extends Notifier<RunSnapshot?> {
   @override
   RunSnapshot? build() {
     ref.watch(persistenceStoreProvider);
-    final raw = ref.read(persistenceStoreProvider).read(_key);
+    final raw = _readBestEffort(ref.read(persistenceStoreProvider), _key);
     if (raw == null || raw.trim() == 'null') {
       return null;
     }
     try {
       return parseRunSnapshot(raw);
     } on FormatException {
+      return null;
+    } on TypeError {
       return null;
     }
   }
@@ -209,7 +240,7 @@ class RunSnapshotRepository extends Notifier<RunSnapshot?> {
     if (store is NoopPersistenceStore) {
       return;
     }
-    await store.write(_key, runSnapshotToJson(snapshot));
+    await _writeBestEffort(store, _key, runSnapshotToJson(snapshot));
   }
 
   Future<void> _clear() async {
@@ -217,7 +248,7 @@ class RunSnapshotRepository extends Notifier<RunSnapshot?> {
     if (store is NoopPersistenceStore) {
       return;
     }
-    await store.write(_key, 'null');
+    await _writeBestEffort(store, _key, 'null');
   }
 
   static const _key = 'run_snapshot';
