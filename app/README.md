@@ -31,6 +31,14 @@ library.
 flutter test integration_test -d <device>
 ```
 
+On Android, `tool/android_integration_test.sh` boots a headless emulator and
+runs the suite against it:
+
+```bash
+./tool/android_integration_test.sh          # default AVD "test_phone"
+./tool/android_integration_test.sh pixel_6  # specific AVD
+```
+
 ## Real engine
 
 By default the app uses the deterministic `FakeEngineService`. To talk to the

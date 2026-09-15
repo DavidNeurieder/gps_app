@@ -12,6 +12,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gps_app/app/app.dart';
+import 'package:gps_app/features/routes/presentation/routes_screen.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// The distance value currently shown on the live screen, in meters.
@@ -114,15 +115,23 @@ void main() {
     await tester.pumpWidget(const GpsApp());
     await tester.pumpAndSettle();
 
-    // Routes tab lists the seeded catalog.
-    await tester.tap(find.text('Routes'));
+    // Routes tab lists the seeded catalog — scope into the NavigationBar to
+    // avoid the AppBar title also matching.
+    await tester.tap(find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text('Routes'),
+    ));
     await tester.pumpAndSettle();
     expect(find.text('River Loop'), findsWidgets);
     expect(find.text('Park 5K'), findsWidgets);
     expect(find.text('Hügelrunde'), findsWidgets);
 
-    // A course card opens its detail page.
-    await tester.tap(find.text('River Loop'));
+    // A course card opens its detail page — scope into RoutesScreen so the
+    // IndexedStack twin copies in Home/Record don't interfere.
+    await tester.tap(find.descendant(
+      of: find.byType(RoutesScreen),
+      matching: find.text('River Loop'),
+    ));
     await tester.pumpAndSettle();
     expect(find.text('Personal Best'), findsOneWidget);
     expect(find.text('Attempts'), findsOneWidget);

@@ -54,7 +54,9 @@ cargo run --example analyze
 ```
 
 CI (`/.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo clippy -D
-warnings`, `cargo test --all-features`, and `cargo doc --no-deps`.
+warnings`, `cargo test --all-features`, `cargo doc --no-deps`, Flutter's
+`flutter analyze` + `flutter test`, and the on-device E2E suite on a headless
+Android emulator (`flutter test integration_test`).
 
 ## Using the real Rust engine
 

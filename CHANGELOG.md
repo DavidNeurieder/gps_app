@@ -11,7 +11,12 @@ documented here, grouped by the implementation milestones in
 - **Integration tests** — on-device E2E suite (`integration_test/app_test.dart`):
   full run journey (Home → START → pause/resume → finish → result → history)
   and route-library browsing, running against the real app on an
-  emulator/device with the deterministic fake engine.
+  emulator/device with the deterministic fake engine. Verified green on an
+  Android 16 (x86_64) emulator.
+- **Android emulator runner** — `app/tool/android_integration_test.sh` boots a
+  headless AVD (default `test_phone`) and runs the suite against it; CI gained
+  a `flutter analyze`/`flutter test` job and an `android-integration-test` job
+  (`reactivecircus/android-emulator-runner`).
 - Cross-platform device testing against real GPS.
 
 ---
