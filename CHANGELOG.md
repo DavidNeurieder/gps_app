@@ -57,7 +57,6 @@ documented here, grouped by the implementation milestones in
   headless AVD (default `test_phone`) and runs the suite against it; CI gained
   a `flutter analyze`/`flutter test` job and an `android-integration-test` job
   (`reactivecircus/android-emulator-runner`).
-- Cross-platform device testing against real GPS.
 
 ---
 
@@ -180,5 +179,5 @@ Work on the standalone engine that later powers the app (M9):
 - **Quality** — property-based testing (`proptest`), a synthetic labeled
   corpus (`testdata/synthetic/` + `manifest.json`), an `evaluate` example that
   reports the confusion matrix (precision 1.000, recall 0.778 at defaults), a
-  benchmark harness, GPX robustness tests (parser never panics), and 178
+  benchmark harness, GPX robustness tests (parser never panics), and 179
   passing tests.

@@ -75,7 +75,7 @@ The library is built as a `cdylib` by the `gps-engine` crate for this purpose.
 
 ```bash
 cd app && flutter analyze && flutter test   # Flutter: 153 tests
-cargo test                                   # Rust: 178 tests + property cases
+cargo test                                   # Rust: 179 tests + property cases
 ```
 
 The Flutter tests run headlessly with `fake_async`, an in-memory store, and
