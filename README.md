@@ -74,7 +74,7 @@ The library is built as a `cdylib` by the `gps-engine` crate for this purpose.
 ## Tests
 
 ```bash
-cd app && flutter analyze && flutter test   # Flutter: 152 tests
+cd app && flutter analyze && flutter test   # Flutter: 153 tests
 cargo test                                   # Rust: 178 tests + property cases
 ```
 

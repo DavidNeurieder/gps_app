@@ -9,7 +9,7 @@ documented here, grouped by the implementation milestones in
 ## [Unreleased]
 
 - **Test expansion** (per `ideas/test_plan.txt`) — Flutter suite grows from 89
-  to 152 tests, closing behavioural gaps:
+  to 153 tests, closing behavioural gaps:
   - `test/state_machine_test.dart` — invalid transitions are strict no-ops
     (pause/finish before running, resume while running, double-pause,
     double-finish, second `beginRun`, `ensureSession`, resume-after-completion),
@@ -32,6 +32,9 @@ documented here, grouped by the implementation milestones in
   acquiring, controls flipping running→PAUSE / paused→RESUME, completed showing
   neither pause nor finish, and rapid pause/resume switching converging on a
   coherent state.
+- **Lifecycle hygiene** (`test/failure_injection_test.dart`, plan Phase 14) — an
+  active run must not leak its 2 Hz ticker into a disposed provider; regression
+  guard for the on-device relaunch scenario.
 - **Failure injection** (`test/failure_injection_test.dart`, plan Phase 13) —
   a dead storage backend and failing route matching must degrade safely. Fixes
   landed in `persistence/` and the controller:
@@ -45,10 +48,11 @@ documented here, grouped by the implementation milestones in
     failing engine `matchRoutes` on headless finishes) and re-emits the
     completed summary with `hasUnsavedData` set rather than crashing.
 - **Integration tests** — on-device E2E suite (`integration_test/app_test.dart`):
-  full run journey (Home → START → pause/resume → finish → result → history)
-  and route-library browsing, running against the real app on an
-  emulator/device with the deterministic fake engine. Verified green on an
-  Android 16 (x86_64) emulator.
+  full run journey (Home → START → pause/resume → finish → result → history),
+  route-library browsing, and an interrupted-run restore across app relaunch
+  (Phase 12: background snapshot → process death → resumed distance grows and
+  completing clears the snapshot). Verified green on a real Samsung device and
+  an Android 16 (x86_64) emulator.
 - **Android emulator runner** — `app/tool/android_integration_test.sh` boots a
   headless AVD (default `test_phone`) and runs the suite against it; CI gained
   a `flutter analyze`/`flutter test` job and an `android-integration-test` job

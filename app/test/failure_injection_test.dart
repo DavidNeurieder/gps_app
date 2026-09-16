@@ -270,4 +270,34 @@ void main() {
       expect(c.read(runSnapshotProvider), isNull);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Lifecycle hygiene (Phase 14): an active run must not leak its 2 Hz ticker
+  // into a disposed provider (the on-device relaunch test exercises this).
+  // -------------------------------------------------------------------------
+  group('lifecycle hygiene', () {
+    test('disposing an active session cancels its ticker', () {
+      fakeAsync((async) {
+        final c = ProviderContainer(overrides: [
+          persistenceStoreProvider.overrideWithValue(const _ThrowingStore()),
+        ]);
+        final sub = c.listen(recordingControllerProvider, (_, _) {});
+
+        final ctrl = c.read(recordingControllerProvider.notifier);
+        ctrl.ensureSession([_route]);
+        async.flushMicrotasks();
+        async.elapse(const Duration(milliseconds: 1000));
+        ctrl.beginRun();
+        async.elapse(const Duration(seconds: 2));
+        expect(state(c)!.distance.meters, greaterThan(0));
+
+        sub.close();
+        c.dispose();
+
+        // If the ticker survived disposal it would keep firing into a disposed
+        // provider and throw here.
+        async.elapse(const Duration(seconds: 10));
+      });
+    });
+  });
 }

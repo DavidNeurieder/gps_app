@@ -10,9 +10,11 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gps_app/app/app.dart';
 import 'package:gps_app/features/routes/presentation/routes_screen.dart';
+import 'package:gps_app/persistence/persistence.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// The distance value currently shown on the live screen, in meters.
@@ -140,5 +142,75 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Park 5K'), findsWidgets);
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase 12: backgrounding snapshots the run; a "relaunch" over the same
+  // store resumes the interrupted run instead of starting a fresh session.
+  // -------------------------------------------------------------------------
+  testWidgets('restores an interrupted run across app relaunch',
+      (tester) async {
+    // A shared store stands in for device storage: the relaunched app reads
+    // the same snapshot the backgrounded instance wrote.
+    final store = MemoryPersistenceStore();
+    Widget app() => ProviderScope(
+          overrides: [persistenceStoreProvider.overrideWithValue(store)],
+          child: const GpsApp(),
+        );
+
+    // First "process": get to READY and start recording.
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Start a run'));
+    await tester.pumpAndSettle();
+    await waitForText(tester, 'READY TO RUN');
+    await tester.tap(find.text('START'));
+    await tester.pumpAndSettle();
+    await pumpFor(tester, const Duration(seconds: 2));
+    final before = _displayedMeters(tester);
+    expect(before, greaterThan(0));
+
+    // Background: the app's lifecycle observer snapshots the interrupted run.
+    // Post both transitions back-to-back: the live test binding stops
+    // producing frames while `paused`, so an interleaved `pump*` would block
+    // forever awaiting a frame that never renders.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    await pumpFor(tester, const Duration(milliseconds: 300));
+    expect(store.read('run_snapshot'), isNotNull);
+    expect(_displayedMeters(tester), greaterThanOrEqualTo(before));
+
+    // "Process death": tear the tree down and relaunch over the same store.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    // The snapshot is still there, so Home's Start-a-run resumes it — the
+    // live screen (not the pre-run/READY screen) must appear, at distance
+    // greater-or-equal to where the app died.
+    await tester.tap(find.text('Start a run'));
+    await tester.pumpAndSettle();
+    await waitForText(tester, 'PACE');
+    expect(find.text('TIME'), findsOneWidget);
+    expect(find.text('FINISH'), findsOneWidget);
+    final restored = _displayedMeters(tester);
+    expect(restored, greaterThanOrEqualTo(before));
+
+    // The restored session is alive, not a static screenshot.
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(_displayedMeters(tester), greaterThan(restored));
+
+    // Finishing the restored run clears the interrupted-run snapshot.
+    await tester.tap(find.text('FINISH'));
+    await waitForText(tester, 'VIEW RESULT');
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(store.read('run_snapshot'), 'null');
+
+    // Clean the tree so the binding is left in a good state for any later
+    // test in this file/process.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
   });
 }
