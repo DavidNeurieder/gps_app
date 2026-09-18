@@ -505,7 +505,16 @@ if (route.personalBest case final pb?) {
       hasUnsavedData: hasUnsavedData,
       route: session.route,
       ghostPosition: ghostPosition ?? state?.ghostPosition,
+      startedAt: session.startedAt,
     );
+  }
+
+  /// Read-only diagnostic view of the in-flight track (M15 Phase 10): the
+  /// same 25 m-synthesized timeline the run would be persisted with, or
+  /// `null` when no session exists.
+  List<TrackPoint>? currentTrack() {
+    final session = _session;
+    return session == null ? null : _synthesizeTrack(session);
   }
 
   _RecSession _requireSession() {

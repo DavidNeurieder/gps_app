@@ -22,6 +22,9 @@ class FakeEngineService implements EngineService {
 
   final _SeededRandom _random;
 
+  @override
+  String get engineDescription => 'fake (deterministic demo)';
+
   /// The canonical ~4.8 km river loop every fake recording follows.
   static const List<GeoPoint> riverLoop = <GeoPoint>[
     GeoPoint(latitude: 52.5050, longitude: 13.3600),

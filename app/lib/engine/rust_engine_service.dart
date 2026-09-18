@@ -28,6 +28,9 @@ final class RustEngineService implements EngineService {
   String get version => _ffi.version;
 
   @override
+  String get engineDescription => 'rust v$version';
+
+  @override
   Future<ProcessedTrack> processTrack({
     required String id,
     required List<TrackPoint> points,

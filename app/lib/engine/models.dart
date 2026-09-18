@@ -239,6 +239,7 @@ class LiveRunState {
     this.hasUnsavedData = false,
     this.route,
     this.ghostPosition,
+    this.startedAt,
   });
 
   final RunStatus status;
@@ -266,6 +267,10 @@ class LiveRunState {
   /// Rendered position of the PB ghost at the live runner's *elapsed* time
   /// (the runner races the ghost, §14). `null` when racing no ghost.
   final GeoPoint? ghostPosition;
+
+  /// Wall-clock start of the run session — exposed for diagnostics
+  /// (M15 Phase 10), e.g. to compute sample ages or fixture timestamps.
+  final DateTime? startedAt;
 }
 
 /// Position along a polyline at [distanceMeters] from its start (linear

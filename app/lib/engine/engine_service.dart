@@ -12,6 +12,10 @@ import '../core/units.dart';
 import 'models.dart';
 
 abstract class EngineService {
+  /// Human-readable engine identity for the developer diagnostics screen
+  /// (M15 Phase 10): e.g. `fake` or `rust v0.1.0`.
+  String get engineDescription;
+
   /// Cleans a recording into a processed track summary.
   Future<ProcessedTrack> processTrack({
     required String id,

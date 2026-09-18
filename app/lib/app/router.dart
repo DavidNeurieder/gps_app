@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/activity/presentation/activity_detail_screen.dart';
+import '../features/dev/presentation/diagnostics_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/recording/presentation/record_flow_screen.dart';
 import '../features/result/presentation/result_screen.dart';
@@ -42,10 +43,16 @@ GoRouter buildRouter() {
           ]),
         ],
       ),
-      // Full-screen overlays pushed above the shell (M11).
+// Full-screen overlays pushed above the shell (M11).
       GoRoute(
         path: '/record/result',
         builder: (context, state) => const ResultScreen(),
+      ),
+      // Developer diagnostics (M15 Phase 10). Always registered so tests and
+      // deep links can reach it; only the shell entry button is gated.
+      GoRoute(
+        path: '/dev/diagnostics',
+        builder: (context, state) => const DiagnosticsScreen(),
       ),
       GoRoute(
         path: '/activity/:id',

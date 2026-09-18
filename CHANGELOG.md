@@ -8,6 +8,51 @@ documented here, grouped by the implementation milestones in
 
 ## [Unreleased]
 
+### M15 — Real-world reliability
+
+**Rust engine (`gps-engine`)** — the raw-GPS quality pipeline and its replay
+safety net:
+
+- **`gps` module** — `GpsFix`/`GpsTrace` with a hand-rolled JSON codec (no
+  serde): the trace normalizes late/out-of-order fixes, then filters by dropped
+  duplicates, first-fix sink, accuracy, jump distance, gap and impossible speed
+  (`FilterReason`), while every raw sample is retained with its
+  accepted/rejected decision (`GpsQuality` grading). JSON is
+  panic-free on arbitrary bytes and idempotent (round-trip proptest).
+- **Replay fixtures** — `examples/generate_fixtures.rs` writes five
+  deterministic raw-GPS fixtures (`tests/fixtures/`): clean loop, jitter,
+  jump, dropout, out-and-back. `tests/gps_torture.rs` replays each through the
+  pipeline and asserts acceptance audit, route coverage and corridor
+  invariants; `tests/gps_properties.rs` fuzzes the parser and the audit
+  invariant.
+- **Ghost geometry invariants** — `GhostSnapshot` with distance, elapsed
+  current/PB, gap, ahead/behind and a sample-spacing `confidence`
+  (`conf_at_<10 m = 1.0`, `>60 m = 0.0`), plus interpolation proxy tests.
+- **Continuity-aware matching** — `ContinuityConfig` (speed-bounded forward
+  window with a max backtracking tolerance; `best_forward_candidate`)
+  eliminates nearest-point jump artifacts on out-and-back routes, exposed as
+  `MatchScore.continuity` (deliberately not folded into `overall_score`).
+- Test counts are updated in the README; `cargo clippy --all-targets` and
+  `cargo fmt --check` stay clean.
+
+**Flutter app** — developer diagnostics (M15 Phase 10):
+
+- `DEV_TOOLS` build gate (`--dart-define=DEV_TOOLS=true`); a bug-report button
+  floats on the shell and opens `/dev/diagnostics`, always route-registered.
+- `DiagnosticsScreen` — live readout of ENGINE (fake vs Rust + version), GPS
+  (raw fix, quality, pace), TRACK (elapsed/distance/session points), ROUTE,
+  GHOST (ahead/behind gap) and PERSISTENCE (recovery snapshot availability).
+- One-tap **Export run as fixture JSON** copies the in-flight track (or the
+  most recent saved run) in the M15 fixture schema, so a real-GPS bug can be
+  pasted into `tests/fixtures/` and replayed (Phase 6/12 workflow).
+- `LiveRunState` carries `startedAt` for diagnostics; `EngineService` exposes
+  `engineDescription`.
+- Tests: `test/diagnostics_test.dart` (gate, engine identity, live GPS/TRACK/
+  GHOST readout, backgrounded snapshot, clipboard export). Flutter suite now
+  159 tests.
+
+---
+
 - **Test expansion** (per `ideas/test_plan.txt`) — Flutter suite grows from 89
   to 153 tests, closing behavioural gaps:
   - `test/state_machine_test.dart` — invalid transitions are strict no-ops
