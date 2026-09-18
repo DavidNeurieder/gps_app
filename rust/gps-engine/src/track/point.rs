@@ -1,12 +1,12 @@
 use crate::error::{TrackError, TrackField};
-use crate::geo::Coordinate;
+use crate::geo::{Bearing, Coordinate};
 use crate::units::Timestamp;
 
 /// A single GPS observation.
 ///
-/// The timestamp and coordinate are mandatory; altitude, speed, and accuracy
-/// are optional sensor fields. Numeric fields are validated to be finite when
-/// set.
+/// The timestamp and coordinate are mandatory; altitude, speed, accuracy, and
+/// bearing are optional sensor fields. Numeric fields are validated to be
+/// finite when set.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TrackPoint {
     timestamp: Timestamp,
@@ -14,6 +14,7 @@ pub struct TrackPoint {
     altitude: Option<f64>,
     speed: Option<f64>,
     accuracy: Option<f64>,
+    bearing: Option<Bearing>,
 }
 
 impl TrackPoint {
@@ -26,6 +27,7 @@ impl TrackPoint {
             altitude: None,
             speed: None,
             accuracy: None,
+            bearing: None,
         }
     }
 
@@ -68,6 +70,12 @@ impl TrackPoint {
         Ok(self)
     }
 
+    /// Sets the reported travel bearing, measured clockwise from north.
+    pub fn with_bearing(mut self, bearing: Bearing) -> Self {
+        self.bearing = Some(bearing);
+        self
+    }
+
     /// The observation timestamp.
     pub fn timestamp(self) -> Timestamp {
         self.timestamp
@@ -91,6 +99,11 @@ impl TrackPoint {
     /// Horizontal accuracy in meters, if reported.
     pub fn accuracy(self) -> Option<f64> {
         self.accuracy
+    }
+
+    /// Travel bearing (clockwise from north), if reported.
+    pub fn bearing(self) -> Option<Bearing> {
+        self.bearing
     }
 
     /// Validates all numeric fields for finiteness; used by [`Track::new`].

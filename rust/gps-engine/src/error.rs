@@ -118,3 +118,20 @@ pub enum RouteError {
     #[error("route requires at least two points, got {0}")]
     TooFewPoints(usize),
 }
+
+/// Errors produced when ingesting raw GPS samples (M15 [`crate::gps`]).
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum GpsError {
+    /// A trace needs at least two fixes to define movement.
+    #[error("gps trace requires at least two fixes, got {0}")]
+    TooFewFixes(usize),
+    /// The trace has no usable fixes left after normalizing/filtering.
+    #[error("gps trace has no usable fixes after processing")]
+    NoUsableTrack,
+    /// The trace produced a [`crate::Track`] that violated its invariants.
+    #[error("invalid track produced from gps trace: {0}")]
+    Track(#[from] TrackError),
+    /// A fixture document was not well-formed JSON or violated the schema.
+    #[error("invalid gps fixture: {0}")]
+    Fixture(String),
+}

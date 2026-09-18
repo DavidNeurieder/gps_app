@@ -56,12 +56,51 @@ pub struct ProcessingReport {
     pub distance_after: Distance,
 }
 
+/// Why an individual point was dropped by the filter.
+///
+/// M15: filtering must be *auditable* — every removed raw sample keeps a
+/// reason, so a developer staring at ugly device data can see exactly what the
+/// engine decided and why (never throw the raw observation away silently).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterReason {
+    /// Reported horizontal accuracy exceeded [`FilterConfig::max_accuracy`].
+    TooInaccurate,
+    /// Reported speed exceeded [`FilterConfig::max_speed`].
+    ImpossibleSpeed,
+    /// Adjacent segments imply a faster-than-threshold movement (a spike).
+    Jump,
+}
+
+impl std::fmt::Display for FilterReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterReason::TooInaccurate => write!(f, "accuracy exceeded limit"),
+            FilterReason::ImpossibleSpeed => write!(f, "speed exceeded limit"),
+            FilterReason::Jump => write!(f, "impossible jump between neighbours"),
+        }
+    }
+}
+
 /// Applies `config` to `track`, returning the filtered track and a report of
 /// what was removed and how much distance changed.
 pub fn filter(track: &Track, config: &FilterConfig) -> (Track, ProcessingReport) {
+    let (track, report, _reasons) = filter_detailed(track, config);
+    (track, report)
+}
+
+/// Applies `config` and, additionally, records a per-input-point decision.
+///
+/// `reasons[i]` is `Some(why)` when input point `i` was removed and `None` when
+/// it survived. The vector is always the same length as `track.points()`.
+pub fn filter_detailed(
+    track: &Track,
+    config: &FilterConfig,
+) -> (Track, ProcessingReport, Vec<Option<FilterReason>>) {
     let points = track.points();
     let input_count = points.len();
     let distance_before = polyline_length(&track.coordinates());
+
+    let mut reasons: Vec<Option<FilterReason>> = vec![None; input_count];
 
     // Pass 1: drop points that fail the sensor-quality checks.
     let mut kept: Vec<usize> = Vec::with_capacity(input_count);
@@ -71,6 +110,7 @@ pub fn filter(track: &Track, config: &FilterConfig) -> (Track, ProcessingReport)
             continue;
         }
         if !passes_sensor_checks(point, config) {
+            reasons[i] = Some(sensor_rejection_reason(point, config));
             continue;
         }
         kept.push(i);
@@ -90,6 +130,7 @@ pub fn filter(track: &Track, config: &FilterConfig) -> (Track, ProcessingReport)
         let incoming_jump = is_jump(&points[prev], &points[i], config);
         let outgoing_jump = is_jump(&points[i], &points[next], config);
         if incoming_jump && outgoing_jump {
+            reasons[i] = Some(FilterReason::Jump);
             continue;
         }
         result.push(points[i]);
@@ -113,7 +154,20 @@ pub fn filter(track: &Track, config: &FilterConfig) -> (Track, ProcessingReport)
             distance_before,
             distance_after,
         },
+        reasons,
     )
+}
+
+/// The sensor-quality rule that failed for `point`, mirroring
+/// [`passes_sensor_checks`]'s checking order.
+fn sensor_rejection_reason(point: &TrackPoint, config: &FilterConfig) -> FilterReason {
+    if let Some(max) = config.max_accuracy
+        && let Some(accuracy) = point.accuracy()
+        && accuracy > max.meters()
+    {
+        return FilterReason::TooInaccurate;
+    }
+    FilterReason::ImpossibleSpeed
 }
 
 /// Internal sensor-quality rules: reported accuracy and reported speed.

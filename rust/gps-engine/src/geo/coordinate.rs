@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use crate::error::GeoError;
 
 /// A geographic coordinate in WGS84 lon/lat degrees.
@@ -8,6 +10,28 @@ use crate::error::GeoError;
 pub struct Coordinate {
     latitude: f64,
     longitude: f64,
+}
+
+// `Eq` is sound: coordinates are validated finite, so `PartialEq` is total.
+impl Eq for Coordinate {}
+
+impl Hash for Coordinate {
+    /// Hashes `-0.0` like `0.0` so `Hash` stays consistent with the derived
+    /// `PartialEq`; coordinates are validated finite, so `to_bits` is safe.
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let lat = if self.latitude == 0.0 {
+            0.0
+        } else {
+            self.latitude
+        };
+        let lon = if self.longitude == 0.0 {
+            0.0
+        } else {
+            self.longitude
+        };
+        lat.to_bits().hash(state);
+        lon.to_bits().hash(state);
+    }
 }
 
 impl Coordinate {

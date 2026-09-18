@@ -8,3 +8,5 @@ Cargo.lock.orig
 
 /opencode.txt
 testdata/real/*.gpx
+
+ideas/

@@ -32,6 +32,9 @@
 /// Typed errors produced by the engine.
 pub mod error;
 
+/// Raw GPS ingestion and per-sample quality (M15).
+pub mod gps;
+
 /// Geographic primitives: coordinates, distance, bearing, interpolation,
 /// polylines, and projection.
 pub mod geo;
@@ -76,15 +79,18 @@ pub use attempt::{
 pub use error::{GeoError, GpxError, RouteError, TrackError, TrackField};
 pub use evaluate::{ConfusionMatrix, LabeledPair, evaluate, parse_manifest, standard_pipeline};
 pub use geo::{Bearing, Coordinate, PolylineBounds, Projection};
-pub use ghost::{Ghost, GhostState};
+pub use ghost::{Ghost, GhostSnapshot, GhostState};
+pub use gps::{
+    Fixture, GpsFix, GpsQuality, GpsTrace, ProcessedSample, RejectionReason, TrackProcessing,
+};
 pub use gpx::{parse_gpx, read_gpx, read_gpx_file, write_gpx, write_gpx_file};
 pub use route::{
-    CanonicalError, CanonicalizeConfig, DiscoveredRoute, MatchConfig, MatchScore, Route,
-    RouteCatalog, RoutePoint, TrackAddition, canonicalize, compare, compare_either_direction,
-    compare_with,
+    CanonicalError, CanonicalizeConfig, ContinuityConfig, ContinuousProjection, DiscoveredRoute,
+    MatchConfig, MatchScore, Route, RouteCatalog, RoutePoint, TrackAddition, canonicalize, compare,
+    compare_either_direction, compare_with,
 };
 pub use track::{
-    FilterConfig, MovingConfig, ProcessingReport, SimplifyConfig, Track, TrackPoint, filter,
-    resample_by_distance, simplify,
+    FilterConfig, FilterReason, MovingConfig, ProcessingReport, SimplifyConfig, Track, TrackPoint,
+    filter, filter_detailed, resample_by_distance, simplify,
 };
 pub use units::{Distance, Duration, Speed, Timestamp};

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ee8c1ef36939a396602d5469eb7b9db65c845e5c8c0ed5625721161b49227e79 # shrinks to trace = GpsTrace { fixes: [GpsFix { timestamp: Timestamp { unix_ms: 0 }, coordinate: Coordinate { latitude: 0.0, longitude: 0.0 }, accuracy: None, altitude: None, speed: None, bearing: None }, GpsFix { timestamp: Timestamp { unix_ms: 0 }, coordinate: Coordinate { latitude: 0.0, longitude: 0.0 }, accuracy: None, altitude: None, speed: None, bearing: None }] }

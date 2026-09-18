@@ -6,7 +6,7 @@ mod reverse;
 mod simplification;
 mod statistics;
 
-pub use filtering::{FilterConfig, ProcessingReport, filter};
+pub use filtering::{FilterConfig, FilterReason, ProcessingReport, filter, filter_detailed};
 pub use model::Track;
 pub use point::TrackPoint;
 pub use resampling::resample_by_distance;

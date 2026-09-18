@@ -73,6 +73,15 @@ pub struct MatchScore {
     /// Mean directional agreement of matched segments, 0..1 (~0 if one track
     /// runs the route reversed relative to the other).
     pub direction_similarity: f64,
+    /// Fraction of consecutive `b`-projections onto `a` that advance along the
+    /// route (allowing [`BACKTRACK_TOLERANCE_M`] of jitter), 0..1. High when
+    /// the two recordings progress in the same direction along the same shape;
+    /// low when the subject repeatedly snaps back (e.g. crossing the other
+    /// route repeatedly). Reported, but deliberately *not* folded into
+    /// `overall_score`: it measures dynamic progression, not geometric
+    /// agreement, and folding it in would silently re-weight the existing
+    /// matching decision.
+    pub continuity: f64,
     /// Provisional weighted aggregate of the metrics above, 0..1.
     pub overall_score: f64,
 }
@@ -139,6 +148,7 @@ pub fn compare_with(a: &Track, b: &Track, config: &MatchConfig) -> MatchScore {
     let distance_ratio = robust_length(a).meters() / robust_length(b).meters();
     let spatial_overlap = overlap(a, b, config);
     let direction_similarity = direction_similarity(a, b, config.lateral_tolerance);
+    let continuity = continuity_metric(a, b, config.lateral_tolerance);
 
     let closure = |d: Distance, max: Distance| -> f64 {
         if max.meters() <= 0.0 {
@@ -158,6 +168,7 @@ pub fn compare_with(a: &Track, b: &Track, config: &MatchConfig) -> MatchScore {
         distance_ratio,
         spatial_overlap,
         direction_similarity,
+        continuity,
         overall_score,
     }
 }
@@ -191,6 +202,54 @@ fn robust_length(track: &Track) -> Distance {
             }
         }
         Err(_) => track.distance(),
+    }
+}
+
+/// Backward jitter (m) between consecutive projections that still counts as
+/// "advancing" for [`MatchScore::continuity`].
+const BACKTRACK_TOLERANCE_M: f64 = 25.0;
+
+/// Fraction of consecutive `subject` points (matched near `reference`) whose
+/// along-track positions advance monotonically.
+///
+/// The reference's cumulative polyline is the axis; each subject point that
+/// projects within the lateral tolerance contributes one step, which counts
+/// as advancing when its cumulative position does not fall more than
+/// [`BACKTRACK_TOLERANCE_M`] behind the previous matched position. A subject
+/// that keeps crossing the reference back and forth (a self-intersection, or
+/// an out-and-back run against the wrong half) scores low.
+fn continuity_metric(reference: &Track, subject: &Track, tol: Distance) -> f64 {
+    let geometry = polyline(reference);
+    if geometry.len() < 2 {
+        return 0.0;
+    }
+    let mut cumulative = Vec::with_capacity(geometry.len());
+    cumulative.push(0.0);
+    for pair in geometry.windows(2) {
+        cumulative.push(cumulative.last().unwrap() + distance(pair[0], pair[1]).meters());
+    }
+    let bounds = crate::geo::PolylineBounds::new(&geometry);
+
+    let mut previous: Option<f64> = None;
+    let mut advancing = 0usize;
+    let mut counted = 0usize;
+    for point in subject.points() {
+        let Some(projection) = bounds.project_within(point.coordinate(), tol) else {
+            continue;
+        };
+        let along = cumulative[projection.segment_index] + projection.distance_along.meters();
+        if let Some(prev) = previous
+            && along >= prev - BACKTRACK_TOLERANCE_M
+        {
+            advancing += 1;
+        }
+        previous = Some(along);
+        counted += 1;
+    }
+    if counted == 0 {
+        0.0
+    } else {
+        advancing as f64 / counted as f64
     }
 }
 
@@ -315,7 +374,88 @@ mod tests {
         assert!((score.distance_ratio - 1.0).abs() < 1e-9);
         assert!(score.spatial_overlap > 0.99);
         assert!(score.direction_similarity > 0.99);
+        assert!(
+            score.continuity > 0.99,
+            "a self-identical track never backtracks"
+        );
         assert!(score.overall_score > 0.95);
+    }
+
+    #[test]
+    fn gradual_out_and_back_keeps_continuity() {
+        // A runner doubles back along the same corridor *gradually* (5 m per
+        // sample vs the 25 m backward-jitter tolerance). Rewinding a few meters
+        // per fix is still "continuous" — the metric must not call a normal
+        // out-and-back a backtracking mess.
+        let geometry = vec![
+            Coordinate::new(52.500, 13.400).unwrap(),
+            Coordinate::new(52.522, 13.400).unwrap(),
+        ];
+        let reference = generate(&geometry, &SyntheticConfig::clean(1));
+        let subject = generate(
+            &[geometry[0], geometry[1], geometry[0]],
+            &SyntheticConfig::clean(2),
+        );
+
+        let score = compare(&reference, &subject);
+        assert!(
+            score.spatial_overlap > 0.9,
+            "out-and-back overlaps its corridor"
+        );
+        assert!(
+            score.continuity > 0.8,
+            "a gradual doubling-back is continuous, got {}",
+            score.continuity
+        );
+    }
+
+    #[test]
+    fn snapping_back_subject_low_continuity_high_overlap() {
+        // A subject that marches up 100 m and snaps back 50 m on every cell
+        // stays inside the reference corridor (so overlap stays near 1), but
+        // each 50 m snap-back exceeds the 25 m backward-jitter tolerance, so
+        // `continuity` collapses to ~½.
+        let geometry = vec![
+            Coordinate::new(52.500, 13.400).unwrap(),
+            Coordinate::new(52.522, 13.400).unwrap(),
+        ];
+        let reference = generate(&geometry, &SyntheticConfig::clean(1));
+
+        let step_deg = 1.0 / 111_132.0; // 1 m of latitude
+        let mut positions = Vec::new();
+        let mut center = 0.0f64;
+        // Each cell advances 50 m then snaps straight back 50 m, so exactly
+        // half the steps are hard snap-backs (> 25 m backward jitter).
+        while center < 2200.0 {
+            positions.extend([center, center + 50.0, center]);
+            center += 50.0;
+        }
+        let points: Vec<TrackPoint> = positions
+            .iter()
+            .enumerate()
+            .map(|(i, &offset)| {
+                TrackPoint::new(
+                    crate::units::Timestamp::from_unix_ms(i as i64 * 5_000),
+                    Coordinate::new(52.500 + step_deg * offset, 13.400).unwrap(),
+                )
+            })
+            .collect();
+        let subject = Track::new(points).unwrap();
+
+        let score = compare(&reference, &subject);
+        assert!(
+            score.spatial_overlap > 0.8,
+            "the corridor is covered, got {}",
+            score.spatial_overlap
+        );
+        // Half the steps are hard 50 m snap-backs (> the 25 m jitter window),
+        // pushing continuity far below the ~1.0 of a forward-only run, even
+        // though every other step still advances 50 m past the snap point.
+        assert!(
+            score.continuity < 0.7,
+            "half the march is a hard snap-back, continuity got {}",
+            score.continuity
+        );
     }
 
     #[test]
