@@ -40,6 +40,36 @@ class TrackPoint {
   final DateTime timestamp;
 }
 
+/// One *raw* GPS observation (M15 Phase 12): the mobile receiver's direct
+/// output, kept unprocessed so a later pipeline (or a re-run with new filters)
+/// can replay the original signal instead of a derived track.
+///
+/// Richer than a [TrackPoint] — which is the *processed* form the engine
+/// consumes — a fix carries the receiver's own accuracy/altitude/speed/bearing
+/// estimates. Any of them may be `null` when the hardware did not report it;
+/// the app must never invent a value to fill the gap.
+class GpsFix {
+  const GpsFix({
+    required this.timestamp,
+    required this.latitude,
+    required this.longitude,
+    this.accuracyMeters,
+    this.altitudeMeters,
+    this.speedMetersPerSecond,
+    this.bearingDegrees,
+  });
+
+  final DateTime timestamp;
+  final double latitude;
+  final double longitude;
+
+  /// Horizontal accuracy (68% confidence radius) in meters, when reported.
+  final double? accuracyMeters;
+  final double? altitudeMeters;
+  final double? speedMetersPerSecond;
+  final double? bearingDegrees;
+}
+
 /// Cumulative sample on the route distance axis: how far, by what time.
 class AttemptSample {
   const AttemptSample({required this.distance, required this.elapsed});
@@ -77,6 +107,7 @@ class Activity {
     this.distance,
     this.performance,
     this.track,
+    this.rawFixes,
   });
 
   final String id;
@@ -88,8 +119,13 @@ class Activity {
   /// Provisional result caption (§43), e.g. `24:22 · 1st`.
   final String? performance;
 
-  /// Raw GPS fixes, persisted as a blob alongside the metadata (§27).
+  /// Processed fixes, persisted as a blob alongside the metadata (§27).
   final List<TrackPoint>? track;
+
+  /// Raw GPS observations retained before processing (M15 Phase 12). Persisted
+  /// additively so the complete source trace survives the recording lifecycle
+  /// and can be exported/replayed later — not just the derived [track].
+  final List<GpsFix>? rawFixes;
 }
 
 /// One attempt reduced to the route axis (GPS → distance ↔ elapsed time).
@@ -289,9 +325,11 @@ GeoPoint? pointAlongPolyline(List<GeoPoint> geometry, double distanceMeters) {
       final fraction = (distanceMeters - walked) / segment;
       final t = fraction.clamp(0.0, 1.0);
       return GeoPoint(
-        latitude: geometry[i - 1].latitude +
+        latitude:
+            geometry[i - 1].latitude +
             (geometry[i].latitude - geometry[i - 1].latitude) * t,
-        longitude: geometry[i - 1].longitude +
+        longitude:
+            geometry[i - 1].longitude +
             (geometry[i].longitude - geometry[i - 1].longitude) * t,
       );
     }
@@ -328,8 +366,7 @@ double haversineMeters(GeoPoint a, GeoPoint b) {
   final lat2 = _rad(b.latitude);
   final sLat = math.sin(dLat / 2);
   final sLon = math.sin(dLon / 2);
-  final h = sLat * sLat +
-      math.cos(lat1) * math.cos(lat2) * sLon * sLon;
+  final h = sLat * sLat + math.cos(lat1) * math.cos(lat2) * sLon * sLon;
   return 2 * earthRadiusM * math.asin(math.min(1.0, math.sqrt(h)));
 }
 

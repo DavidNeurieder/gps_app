@@ -2,24 +2,23 @@
 ///
 /// Deliberately utilitarian: a live readout of what the app knows right now,
 /// so a developer standing outside with a phone can answer "why did the ghost
-/// jump?" without guessing. Exposed only through the dev-tools gate
-/// (`devToolsEnabledProvider`); the screen itself stays route-registered so
-/// tests and deep links can reach it.
+/// jump?" without guessing. The widget is a pure projection of
+/// [diagnosticsSnapshotProvider]; it does not reach into repositories itself.
+///
+/// Exposed only through the dev-tools gate (`devToolsEnabledProvider`): both
+/// the shell entry button and the route itself are gated.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../app/dependencies.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/units.dart';
-import '../../../engine/fake_engine.dart';
 import '../../../engine/models.dart';
-import '../../../persistence/persistence.dart';
+import '../application/diagnostics_snapshot.dart';
 import '../application/fixture_export.dart';
-import '../../recording/application/recording_controller.dart';
 
 class DiagnosticsScreen extends ConsumerStatefulWidget {
   const DiagnosticsScreen({super.key});
@@ -33,9 +32,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final engine = ref.watch(engineServiceProvider);
-    final live = ref.watch(recordingControllerProvider);
-    final snapshot = ref.watch(runSnapshotProvider);
+    final snapshot = ref.watch(diagnosticsSnapshotProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Diagnostics')),
@@ -46,74 +43,69 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
             _Section(
               title: 'ENGINE',
               rows: [
-                _row('Implementation', engine.engineDescription),
-                _row('Type', engine.runtimeType.toString()),
-                _row('Run status', live?.status.name ?? '—'),
+                _row('Implementation', snapshot.engineDescription),
+                _row('Type', snapshot.engineType),
+                _row('Run status', snapshot.runStatus),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
             _Section(
               title: 'GPS',
               rows: [
-                _row('Latitude', live?.currentPosition?.latitude.toStringAsFixed(6) ?? '—'),
-                _row('Longitude', live?.currentPosition?.longitude.toStringAsFixed(6) ?? '—'),
-                _row('Quality', live?.gpsQuality ?? '—'),
-                _row('Pace', live?.pace.formatPace() ?? '—'),
-                _row('Started', live?.startedAt?.toLocal().toIso8601String() ?? '—'),
+                _row('Latitude', _coordinate(snapshot.latestFix?.latitude)),
+                _row('Longitude', _coordinate(snapshot.latestFix?.longitude)),
+                _row('Quality', snapshot.gpsQuality),
+                _row('Pace', snapshot.paceDescription),
+                _row(
+                  'Started',
+                  snapshot.startedAt?.toLocal().toIso8601String() ?? '—',
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
             _Section(
               title: 'TRACK',
               rows: [
-                _row('Elapsed', live?.elapsed.format() ?? '—'),
-                _row('Distance', live?.distance.format() ?? '—'),
-                _row(
-                  'Session points',
-                  '${ref.read(recordingControllerProvider.notifier).currentTrack()?.length ?? 0}',
-                ),
+                _row('Elapsed', snapshot.elapsedDescription),
+                _row('Distance', snapshot.distanceDescription),
+                _row('Raw fixes', '${snapshot.rawFixCount}'),
+                _row('Session points', '${snapshot.processedPointCount}'),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
             _Section(
               title: 'ROUTE',
               rows: [
-                _row('Name', live?.route?.name ?? 'new route'),
-                _row('Progress', live == null
-                    ? '—'
-                    : '${(live.routeProgress * 100).toStringAsFixed(1)} %'),
+                _row('Name', snapshot.routeName ?? 'new route'),
                 _row(
-                  'Geometry points',
-                  '${live?.route?.geometry.length ?? 0}',
+                  'Progress',
+                  snapshot.routeName == null
+                      ? '—'
+                      : '${(snapshot.routeProgress * 100).toStringAsFixed(1)} %',
                 ),
+                _row('Geometry points', '${snapshot.routeGeometryPoints}'),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            _Section(
-              title: 'GHOST',
-              rows: _ghostRow(live?.ghostGap),
-            ),
+            _Section(title: 'GHOST', rows: _ghostRows(snapshot.ghostGap)),
             const SizedBox(height: AppSpacing.md),
             _Section(
               title: 'PERSISTENCE',
-              rows: snapshot == null
-                  ? [_row('Recovery snapshot', 'none')]
-                  : [
-                      _row('Status', snapshot.status.name),
-                      _row('Start', snapshot.startedAt.toLocal().toIso8601String()),
-                      _row('Moving', Elapsed.seconds(snapshot.movingSeconds).format()),
-                      _row('Distance', Distance.meters(snapshot.distanceMeters).format()),
-                      _row('Loop', Distance.meters(snapshot.loopMeters).format()),
-                      _row('Route id', snapshot.routeId ?? '—'),
-                      _row('Recovery', 'available'),
-                    ],
+              rows: _persistenceRows(snapshot.recovery),
             ),
             const SizedBox(height: AppSpacing.xl),
             FilledButton.icon(
               key: const ValueKey('export-fixture'),
               onPressed: _copied ? null : _exportFixture,
               icon: const Icon(Icons.copy_rounded),
-              label: Text(_copied ? 'Fixture JSON copied' : 'Export run as fixture JSON'),
+              label: Text(
+                _copied ? 'Fixture JSON copied' : 'Export run as fixture JSON',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              fixturePrivacyWarning,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -122,79 +114,92 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
     );
   }
 
-  List<_Row> _ghostRow(GhostState? gap) {
+  String _coordinate(double? value) =>
+      value == null ? '—' : value.toStringAsFixed(6);
+
+  List<_Row> _ghostRows(GhostState? gap) {
     if (gap == null) {
-      return [
-        _row('Racing', 'no'),
-        _row('Gap', '—'),
-      ];
+      return [_row('Racing', 'no'), _row('Gap', '—')];
     }
     final direction = gap.ahead ? 'ahead' : 'behind';
     return [
       _row('Racing', 'yes'),
       _row('Gap', '${gap.timeDifference.format()} $direction'),
-      _row(
-        'At distance',
-        gap.distance.format(),
-      ),
+      _row('At distance', gap.distance.format()),
+    ];
+  }
+
+  List<_Row> _persistenceRows(RunSnapshot? recovery) {
+    if (recovery == null) {
+      return [_row('Recovery snapshot', 'none')];
+    }
+    return [
+      _row('Status', recovery.status.name),
+      _row('Start', recovery.startedAt.toLocal().toIso8601String()),
+      _row('Moving', Elapsed.seconds(recovery.movingSeconds).format()),
+      _row('Distance', Distance.meters(recovery.distanceMeters).format()),
+      _row('Loop', Distance.meters(recovery.loopMeters).format()),
+      _row('Route id', recovery.routeId ?? '—'),
+      _row('Recovery', 'available'),
     ];
   }
 
   _Row _row(String label, String value) => _Row(label, value);
 
-  /// Exports the current in-flight track (or the most recent persisted run)
-  /// as a raw-GPS fixture and copies it to the clipboard.
+  /// Exports the retained raw fixes (live session, else most recent persisted
+  /// run) as a fixture and copies it to the clipboard.
+  ///
+  /// Refuses — with an explicit message — when there is nothing to export or
+  /// when the recording has no route geometry; it never substitutes demo
+  /// geometry. A privacy confirmation stands between the button and the
+  /// clipboard.
   Future<void> _exportFixture() async {
-    final live = ref.read(recordingControllerProvider);
-    final fixes = _exportFixes(live);
-    final route = _exportRoute(live);
-    if (fixes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    final data = ref.read(diagnosticsSnapshotProvider).exportData;
+    if (data.fixes.isEmpty) {
+      messenger.showSnackBar(
         const SnackBar(content: Text('No track to export yet.')),
       );
       return;
     }
-    final json = buildFixtureJson(route: route, fixes: fixes);
-    await Clipboard.setData(ClipboardData(text: json));
-    setState(() => _copied = true);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fixture JSON copied to clipboard.')),
+    if (data.route == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text(noRouteGeometryMessage)),
       );
+      return;
     }
-  }
 
-  List<TrackPoint> _exportFixes(LiveRunState? live) {
-    final liveTrack =
-        ref.read(recordingControllerProvider.notifier).currentTrack();
-    if (liveTrack != null && liveTrack.isNotEmpty) {
-      return liveTrack;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Export raw GPS fixture?'),
+        content: const Text(fixturePrivacyWarning),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-export'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Copy fixture'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
     }
-    final activities = ref.read(activityRepositoryProvider);
-    for (final activity in activities) {
-      if (activity.track case final track? when track.isNotEmpty) {
-        return track;
-      }
-    }
-    return const [];
-  }
 
-  List<GeoPoint> _exportRoute(LiveRunState? live) {
-    if (live?.route != null) {
-      return live!.route!.geometry;
+    final json = buildFixtureJson(route: data.route!, fixes: data.fixes);
+    await Clipboard.setData(ClipboardData(text: json));
+    if (!mounted) {
+      return;
     }
-    final activities = ref.read(activityRepositoryProvider);
-    for (final activity in activities) {
-      final geometry = ref
-          .read(routeRepositoryProvider)
-          .where((r) => r.id == activity.routeId)
-          .map((r) => r.geometry)
-          .firstOrNull;
-      if (geometry != null) {
-        return geometry;
-      }
-    }
-    return FakeEngineService.riverLoop;
+    setState(() => _copied = true);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Fixture JSON copied to clipboard.')),
+    );
   }
 }
 

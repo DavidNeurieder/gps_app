@@ -51,6 +51,39 @@ safety net:
   GHOST readout, backgrounded snapshot, clipboard export). Flutter suite now
   159 tests.
 
+### M15.10 — Diagnostics & fixture reliability
+
+**Rust engine (`gps-engine`)** — fixture-schema hardening:
+
+- `schema_version: 1` is written by `Fixture::to_json`/`GpsTrace::to_json` and
+  validated by `Fixture::from_json`: legacy versionless fixtures still parse,
+  newer versions are rejected with an actionable message.
+- Optional sensor fields may be explicit JSON `null` (equivalent to missing),
+  matching the Flutter exporter's self-describing output.
+- `tests/gps_schema.rs` pins the contract — including the exact document the
+  Flutter exporter emits — and `tests/gps_pipeline.rs` exercises the whole
+  raw → filter/quality → continuity projection → ghost pipeline.
+- Fixtures regenerated with `schema_version`.
+
+**Flutter app** — raw-fix retention and honest exports:
+
+- `GpsFix` raw observations are retained for the whole session
+  (`RecordingController.currentFixes()`) and persisted additively with the
+  completed `Activity` (`raw_fixes`), instead of keeping only the derived 25 m
+  track.
+- `fixture_export.dart` consumes the raw `GpsFix`es, writes `schema_version`,
+  and emits missing sensor fields as explicit `null`; it never fabricates
+  accuracy/altitude/speed/bearing (the old constant defaults are gone).
+- Export refuses, with an explicit message, when no route geometry is
+  available — demo geometry is never silently substituted. A privacy warning
+  guards the clipboard copy, and the diagnostics screen reads one
+  `DiagnosticsSnapshot` aggregate instead of probing repositories.
+- `/dev/diagnostics` is gated in the router as well as in the shell.
+- Tests: `test/fixture_export_test.dart` (schema, empty/single/multiple/
+  out-of-order traces, absent fields, poor accuracy, large trace) and expanded
+  `test/diagnostics_test.dart` (route gate, privacy cancel/confirm, route-less
+  refusal). Flutter suite now 169 tests.
+
 ---
 
 - **Test expansion** (per `ideas/test_plan.txt`) — Flutter suite grows from 89

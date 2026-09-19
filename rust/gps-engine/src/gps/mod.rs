@@ -372,9 +372,13 @@ impl GpsTrace {
         })
     }
 
-    /// Serializes the trace to the JSON fixture schema (`{"fixes": [...]}`).
+    /// Serializes the trace to the JSON fixture schema
+    /// (`{"schema_version": 1, "fixes": [...]}`).
     pub fn to_json(&self) -> String {
-        format!("{{\"fixes\":{}}}", serialize_fixes(&self.fixes))
+        format!(
+            "{{\"schema_version\":{FIXTURE_SCHEMA_VERSION},\"fixes\":{}}}",
+            serialize_fixes(&self.fixes)
+        )
     }
 
     /// Parses a JSON fixture (`{"fixes": [...]}`, or a [`Fixture`] object).
@@ -388,6 +392,10 @@ impl GpsTrace {
 
 /// A checked-in fixture: the canonical route the trace follows (for the
 /// position invariants) plus the raw fixes.
+///
+/// The documented JSON schema is versioned by `schema_version` (see
+/// [`FIXTURE_SCHEMA_VERSION`]). Parsing accepts legacy documents without the
+/// field and rejects versions newer than this build understands.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fixture {
     /// The route the trace was recorded against, when embedded.
@@ -395,6 +403,13 @@ pub struct Fixture {
     /// The raw fixes.
     pub trace: GpsTrace,
 }
+
+/// Fixture JSON schema version understood by this build.
+///
+/// * v0 (implicit): `{"route":[...], "fixes":[...]}`, absent `schema_version`.
+/// * v1: adds `schema_version`, and optional sensor fields may be explicit
+///   `null` (treated the same as missing).
+pub const FIXTURE_SCHEMA_VERSION: i64 = 1;
 
 impl Fixture {
     /// Parses a fixture document (`{"route":[...], "fixes":[...]}`).
@@ -406,6 +421,7 @@ impl Fixture {
     /// Serializes the fixture to JSON.
     pub fn to_json(&self) -> String {
         let mut out = String::from("{");
+        out.push_str(&format!("\"schema_version\":{FIXTURE_SCHEMA_VERSION},"));
         if let Some(route) = &self.route {
             out.push_str("\"route\":[");
             for (i, coord) in route.geometry().iter().enumerate() {
@@ -428,12 +444,14 @@ impl Fixture {
 
     /// Extracts just the fix list from a fixture root object.
     fn trace_from_root(root: &JsonValue) -> Result<GpsTrace, GpsError> {
+        check_schema_version(root)?;
         let fixes = fixes_from_object(root)?;
         GpsTrace::new(fixes)
     }
 
     /// Extracts a full fixture (route + fixes) from a root object.
     fn from_root(root: &JsonValue) -> Result<Fixture, GpsError> {
+        check_schema_version(root)?;
         let route = match root.object_get("route") {
             None => None,
             Some(JsonValue::Array(points)) => {
@@ -461,6 +479,31 @@ fn fixture_err(message: impl Into<String>) -> GpsError {
     GpsError::Fixture(message.into())
 }
 
+/// Validates the fixture's `schema_version`.
+///
+/// A missing field is treated as the implicit legacy version (v0); the current
+/// version is accepted; anything newer is rejected with actionable advice
+/// rather than misparsed.
+fn check_schema_version(root: &JsonValue) -> Result<(), GpsError> {
+    match root.object_get("schema_version") {
+        None => Ok(()),
+        Some(JsonValue::Number(n)) => {
+            let version = *n;
+            if !version.is_finite() || version.fract() != 0.0 {
+                return Err(fixture_err("\"schema_version\" must be an integer"));
+            }
+            if (version as i64) > FIXTURE_SCHEMA_VERSION {
+                return Err(fixture_err(format!(
+                    "unsupported fixture schema_version {version} \
+                     (supported: {FIXTURE_SCHEMA_VERSION}); regenerate the fixture"
+                )));
+            }
+            Ok(())
+        }
+        Some(_) => Err(fixture_err("\"schema_version\" must be an integer")),
+    }
+}
+
 fn fixes_from_object(root: &JsonValue) -> Result<Vec<GpsFix>, GpsError> {
     let Some(JsonValue::Array(fixes)) = root.object_get("fixes") else {
         return Err(fixture_err("missing \"fixes\" array"));
@@ -477,8 +520,8 @@ fn fix_from_value(value: &JsonValue) -> Result<GpsFix, GpsError> {
     let coordinate = Coordinate::new(lat, lon).map_err(|e| fixture_err(e.to_string()))?;
     let accuracy = match value.object_get("accuracy_m") {
         Some(JsonValue::Number(n)) => Some(Distance::from_meters(*n)),
+        Some(JsonValue::Null) | None => None,
         Some(_) => return Err(fixture_err("\"accuracy_m\" must be a number")),
-        None => None,
     };
     let altitude = value.optional_number("altitude_m")?;
     let speed = value.optional_number("speed_mps")?.map(Speed::from_mps);
@@ -569,9 +612,12 @@ impl JsonValue {
         Ok(n as i64)
     }
 
+    /// Reads an optional numeric field. A missing field and an explicit JSON
+    /// `null` are equivalent ("the sensor did not report"), which keeps the
+    /// parser compatible with the Dart exporter's self-describing fixtures.
     fn optional_number(&self, key: &str) -> Result<Option<f64>, GpsError> {
         match self.object_get(key) {
-            None => Ok(None),
+            None | Some(JsonValue::Null) => Ok(None),
             Some(JsonValue::Number(n)) => Ok(Some(*n)),
             Some(_) => Err(fixture_err(format!("\"{key}\" must be a number"))),
         }

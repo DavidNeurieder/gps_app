@@ -84,17 +84,24 @@ flutter run --dart-define=DEV_TOOLS=true
 ```
 
 A small bug-report button floats at the top right of every tab and opens the
-diagnostics screen: the active engine implementation, the live GPS fix, track /
-route / ghost readouts, and the persisted recovery snapshot. **Export run as
-fixture JSON** serializes the in-flight track (or the most recent saved run) in
-the M15 raw-GPS fixture schema and copies it to the clipboard:
+diagnostics screen (gated in both the shell and the router): the active engine
+implementation, the live GPS fix, track / route / ghost readouts, and the
+persisted recovery snapshot. **Export run as fixture JSON** serializes the
+*raw* fixes retained for the in-flight run (or the most recent saved run) in
+the M15 fixture schema and copies it to the clipboard after a privacy
+confirmation:
 
 ```json
-{"route":[{"lat":..,"lon":..}],
+{"schema_version":1,
+ "route":[{"lat":..,"lon":..}],
  "fixes":[{"timestamp_ms":..,"latitude":..,"longitude":..,
            "accuracy_m":..,"altitude_m":..,"speed_mps":..,"bearing_deg":..}]}
 ```
 
+Raw fixes are the receiver's own observations, captured before any processing
+and persisted with the completed activity; sensor fields the device never
+reported are emitted as explicit `null` — never invented — and a recording
+with no route geometry refuses export rather than substituting demo data.
 Paste the document into `rust/gps-engine/tests/fixtures/` and drive it through
 the Rust pipeline (`GpsTrace::from_json` → `process` → invariants, see
 `tests/gps_torture.rs`) — a real-device GPS bug becomes a permanent regression
@@ -104,8 +111,8 @@ without guessing.
 ## Tests
 
 ```bash
-cd app && flutter analyze && flutter test   # Flutter: 159 tests
-cargo test                                   # Rust: 197 tests + property cases
+cd app && flutter analyze && flutter test   # Flutter: 169 tests
+cargo test                                   # Rust: 204 tests + property cases
 ```
 
 The Flutter tests run headlessly with `fake_async`, an in-memory store, and
@@ -114,7 +121,11 @@ Rust suite additionally replays five checked-in raw-GPS fixtures
 (`tests/fixtures/clean_loop.json`, `gps_jitter.json`, `gps_jump.json`,
 `gps_dropout.json`, `out_and_back.json`) through the filter/quality pipeline —
 `cargo run --example generate_fixtures` regenerates them — and asserts the
-trace round-trips through its own JSON.
+trace round-trips through its own JSON. `tests/gps_schema.rs` pins the fixture
+schema (`schema_version`, explicit `null` sensor fields, rejection of newer
+versions) against the exact document the Flutter exporter emits, and
+`tests/gps_pipeline.rs` drives a fixture end-to-end from raw fixes to a ghost
+snapshot.
 
 ## Status
 
@@ -123,7 +134,9 @@ ships with a seeded catalog and a deterministic fake GPS timeline (the ~4.8 km
 "River Loop"), so the whole loop is explorable on any device or in tests.
 M15 added the raw-GPS quality model, checked-in replay fixtures, ghost
 geometry invariants and continuity-aware matching on the Rust side, plus the
-developer diagnostics screen on the app side.
+developer diagnostics screen on the app side. It also retains the raw fixes
+through the recording lifecycle (exported, never fabricated) and gates the
+diagnostics route, not just its entry button.
 
 ## License
 

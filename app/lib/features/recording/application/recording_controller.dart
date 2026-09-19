@@ -25,7 +25,8 @@ import '../../../persistence/persistence.dart';
 /// Null until a run session exists; otherwise the current live state.
 final recordingControllerProvider =
     NotifierProvider.autoDispose<RecordingController, LiveRunState?>(
-        RecordingController.new);
+      RecordingController.new,
+    );
 
 class RecordingController extends Notifier<LiveRunState?> {
   static const Duration _tick = Duration(milliseconds: 500);
@@ -82,8 +83,9 @@ class RecordingController extends Notifier<LiveRunState?> {
   void beginRun() {
     final session = _requireSession();
     if (session.route == null) {
-      session.loopLength =
-          session.geometry.isEmpty ? 0 : polylineMeters(session.geometry);
+      session.loopLength = session.geometry.isEmpty
+          ? 0
+          : polylineMeters(session.geometry);
     }
     _lastTick = clock.now();
     _throttleAnchor = clock.now();
@@ -194,24 +196,28 @@ class RecordingController extends Notifier<LiveRunState?> {
     _lastTick = now;
 
     // Slightly variable, deterministic pace.
-    final speed =
-        _baseSpeedMps * (0.97 + _random.nextDouble() * 0.06);
+    final speed = _baseSpeedMps * (0.97 + _random.nextDouble() * 0.06);
     final step = speed * deltaSeconds;
-    session.distanceM = _clampMeters(session.distanceM + step, session.loopLength);
+    session.distanceM = _clampMeters(
+      session.distanceM + step,
+      session.loopLength,
+    );
     session.moving = session.moving + Elapsed.seconds(deltaSeconds);
 
     final position = pointAlongPolyline(session.geometry, session.distanceM);
+    if (position != null) {
+      _recordFix(session, now, position, speed);
+    }
 
     GhostState? gap;
     GeoPoint? ghostPosition;
     if (session.ghost != null) {
       gap = _gapAt(session, session.distanceM);
       final ghostDistance = _ghostDistanceAt(session, session.moving.seconds);
-      ghostPosition =
-          pointAlongPolyline(session.geometry, ghostDistance);
+      ghostPosition = pointAlongPolyline(session.geometry, ghostDistance);
     }
 
-_emit(
+    _emit(
       status: RunStatus.running,
       position: position,
       gap: gap,
@@ -219,6 +225,57 @@ _emit(
     );
     _snapshotThrottled();
   }
+
+  /// Retains one raw GPS observation for [position] (M15 Phase 12).
+  ///
+  /// The fake receiver reports a constant 5 m accuracy and 60 m altitude; the
+  /// speed and bearing are derived from the movement just like the Rust
+  /// fixture generator does. Crucially these are the *fix's own* sensor
+  /// fields, captured before any track processing — never re-derived later.
+  void _recordFix(
+    _RecSession session,
+    DateTime timestamp,
+    GeoPoint position,
+    double speedMps,
+  ) {
+    final previous = session.rawFixes.isEmpty ? null : session.rawFixes.last;
+    session.rawFixes.add(
+      GpsFix(
+        timestamp: timestamp.toUtc(),
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: 5.0,
+        altitudeMeters: 60.0,
+        speedMetersPerSecond: speedMps,
+        bearingDegrees: previous == null
+            ? null
+            : _forwardBearing(
+                previous.latitude,
+                previous.longitude,
+                position.latitude,
+                position.longitude,
+              ),
+      ),
+    );
+  }
+
+  /// Initial forward azimuth in degrees 0..360 (WGS84 great-circle).
+  double _forwardBearing(double lat1, double lon1, double lat2, double lon2) {
+    final phi1 = _radians(lat1);
+    final phi2 = _radians(lat2);
+    final dLon = _radians(lon2 - lon1);
+    final x = math.sin(dLon) * math.cos(phi2);
+    final y =
+        math.cos(phi1) * math.sin(phi2) -
+        math.sin(phi1) * math.cos(phi2) * math.cos(dLon);
+    var degrees = math.atan2(x, y) * (180.0 / math.pi);
+    if (degrees < 0) {
+      degrees += 360.0;
+    }
+    return degrees;
+  }
+
+  double _radians(double degrees) => degrees * (math.pi / 180.0);
 
   /// Persists a snapshot at most every ~5 s of wall time so a backgrounded or
   /// killed process can resume close to where it left off (§28).
@@ -296,7 +353,9 @@ _emit(
         final a = samples[i - 1];
         final b = samples[i];
         final span = b.elapsed.seconds - a.elapsed.seconds;
-        final fraction = span <= 0 ? 0 : (liveSeconds - a.elapsed.seconds) / span;
+        final fraction = span <= 0
+            ? 0
+            : (liveSeconds - a.elapsed.seconds) / span;
         return a.distance.meters +
             (b.distance.meters - a.distance.meters) * fraction;
       }
@@ -307,7 +366,8 @@ _emit(
   GhostState _gapAt(_RecSession session, double distanceM) {
     final reference = session.ghost!.samples;
     // Live time at this distance: constant cruise pace.
-    final liveTime = session.moving.seconds *
+    final liveTime =
+        session.moving.seconds *
         (distanceM / (session.loopLength <= 0 ? 1 : session.loopLength));
     final referenceTime = _referenceTimeAt(reference, distanceM);
     final difference = Elapsed.seconds(liveTime - referenceTime);
@@ -344,11 +404,7 @@ _emit(
     final gap = session.ghost != null
         ? _gapAt(session, session.distanceM)
         : null;
-    _emit(
-      status: RunStatus.completed,
-      gap: gap,
-      hasUnsavedData: true,
-    );
+    _emit(status: RunStatus.completed, gap: gap, hasUnsavedData: true);
     _timer?.cancel();
     _timer = null;
     // Persist in the background; the flag clears when the save lands.
@@ -373,8 +429,11 @@ _emit(
         distance: Distance.meters(session.distanceM),
         performance: session.moving.format(),
         track: track,
+        rawFixes: List.unmodifiable(session.rawFixes),
       );
-      await ref.read(activityRepositoryProvider.notifier).saveActivity(activity);
+      await ref
+          .read(activityRepositoryProvider.notifier)
+          .saveActivity(activity);
       // M13 §28: the run is safely stored — clear the interrupted-run snapshot.
       await ref.read(runSnapshotProvider.notifier).save(null);
     } catch (_) {
@@ -383,11 +442,7 @@ _emit(
       saved = false;
     }
     if (_session == session) {
-      _emit(
-        status: RunStatus.completed,
-        gap: gap,
-        hasUnsavedData: !saved,
-      );
+      _emit(status: RunStatus.completed, gap: gap, hasUnsavedData: !saved);
     }
   }
 
@@ -406,18 +461,24 @@ _emit(
         break;
       }
       final elapsedMs = (durationMs * (d / session.distanceM)).round();
-      track.add(TrackPoint(
-        position: position,
-        timestamp: session.startedAt.add(Duration(milliseconds: elapsedMs)),
-      ));
+      track.add(
+        TrackPoint(
+          position: position,
+          timestamp: session.startedAt.add(Duration(milliseconds: elapsedMs)),
+        ),
+      );
     }
-    final finalPosition =
-        pointAlongPolyline(session.geometry, session.distanceM);
+    final finalPosition = pointAlongPolyline(
+      session.geometry,
+      session.distanceM,
+    );
     if (finalPosition != null) {
-      track.add(TrackPoint(
-        position: finalPosition,
-        timestamp: session.startedAt.add(Duration(milliseconds: durationMs)),
-      ));
+      track.add(
+        TrackPoint(
+          position: finalPosition,
+          timestamp: session.startedAt.add(Duration(milliseconds: durationMs)),
+        ),
+      );
     }
     return track;
   }
@@ -442,13 +503,12 @@ _emit(
   }
 
   List<TrackPoint> _geometryTrack(List<GeoPoint> geometry) => [
-        for (var i = 0; i < geometry.length; i++)
-          TrackPoint(
-            position: geometry[i],
-            timestamp: DateTime.fromMillisecondsSinceEpoch(i * 1000,
-                isUtc: true),
-          ),
-      ];
+    for (var i = 0; i < geometry.length; i++)
+      TrackPoint(
+        position: geometry[i],
+        timestamp: DateTime.fromMillisecondsSinceEpoch(i * 1000, isUtc: true),
+      ),
+  ];
 
   Future<void> _prepareGhost() async {
     final session = _requireSession();
@@ -461,24 +521,26 @@ _emit(
     session.geometry = route.geometry;
     session.loopLength = polylineMeters(session.geometry);
 
-if (route.personalBest case final pb?) {
+    if (route.personalBest case final pb?) {
       // Ghost = the PB attempt run at constant PB speed. M9: generated by
       // whichever engine is wired in (fake or Rust).
       final engine = ref.read(engineServiceProvider);
       final speed = session.loopLength / pb.seconds;
-      final recording =
-          engine.generateRecording(
-              noiseMeters: 1.0,
-              speedMetersPerSecond: speed,
-              sampleEverySeconds: 1.0);
+      final recording = engine.generateRecording(
+        noiseMeters: 1.0,
+        speedMetersPerSecond: speed,
+        sampleEverySeconds: 1.0,
+      );
       final attempt = await engine.createAttempt(
         activityId: 'ghost-${route.id}',
         routeId: route.id,
         points: recording,
         routeGeometry: route.geometry,
       );
-      session.ghost =
-          Ghost(attemptId: attempt.activityId, samples: attempt.samples);
+      session.ghost = Ghost(
+        attemptId: attempt.activityId,
+        samples: attempt.samples,
+      );
     }
   }
 
@@ -517,6 +579,14 @@ if (route.personalBest case final pb?) {
     return session == null ? null : _synthesizeTrack(session);
   }
 
+  /// Read-only view of the raw GPS observations retained this session
+  /// (M15 Phase 12): the complete, unprocessed receiver output, or `null`
+  /// when no session exists.
+  List<GpsFix>? currentFixes() {
+    final session = _session;
+    return session == null ? null : List.unmodifiable(session.rawFixes);
+  }
+
   _RecSession _requireSession() {
     final session = _session;
     assert(session != null, 'RecordingController has no active session');
@@ -539,8 +609,8 @@ class _RecSession {
     DateTime? startedAt,
     double movingSeconds = 0,
     this.loopLength = 0,
-  })  : startedAt = startedAt ?? DateTime.now().toUtc(),
-        moving = Elapsed.seconds(movingSeconds);
+  }) : startedAt = startedAt ?? DateTime.now().toUtc(),
+       moving = Elapsed.seconds(movingSeconds);
 
   final DateTime startedAt;
   Route? route;
@@ -549,4 +619,9 @@ class _RecSession {
   Ghost? ghost;
   Elapsed moving = Elapsed.zero();
   double distanceM;
+
+  /// Every raw GPS observation received this session (M15 Phase 12), in
+  /// arrival order. Unlike `_synthesizeTrack` (25 m display/persist samples),
+  /// this is the complete pre-processing trace.
+  final List<GpsFix> rawFixes = [];
 }

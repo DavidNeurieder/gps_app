@@ -4,8 +4,9 @@
 //! cargo run --example generate_fixtures
 //! ```
 //!
-//! Five fixture documents, each a `{"route": [...], "fixes": [...]}` object
-//! the gps module can parse back via [`Fixture::from_json`] / `GpsTrace`:
+//! Five fixture documents, each a schema-versioned
+//! `{"schema_version": 1, "route": [...], "fixes": [...]}` object the gps
+//! module can parse back via [`Fixture::from_json`] / `GpsTrace`:
 //!
 //! - `clean_loop.json`: a perfect loop with good reported accuracy.
 //! - `gps_jitter.json`: noisy per-fix positions (degraded accuracy).
